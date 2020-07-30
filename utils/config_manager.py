@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 import ruamel.yaml
 
-from model.models import AutoregressiveTransformer, ForwardTransformer
+from models.transformer.models import AutoregressiveTransformer, ForwardTransformer
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 
 

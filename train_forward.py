@@ -12,7 +12,7 @@ from preprocessing.data_handling import Dataset, ForwardDataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
-from model.transformer_utils import create_mel_padding_mask
+from models.transformer.transformer_utils import create_mel_padding_mask
 
 np.random.seed(42)
 tf.random.set_seed(42)

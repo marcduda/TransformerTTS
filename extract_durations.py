@@ -9,7 +9,7 @@ from tqdm import tqdm
 from utils.config_manager import ConfigManager
 from utils.logging import SummaryManager
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
-from model.transformer_utils import create_mel_padding_mask
+from models.transformer.transformer_utils import create_mel_padding_mask
 from utils.alignments import get_durations_from_alignment
 
 # dynamically allocate GPU

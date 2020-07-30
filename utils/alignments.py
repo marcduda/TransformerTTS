@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from model.transformer_utils import create_mel_padding_mask, create_encoder_padding_mask
+from models.transformer.transformer_utils import create_mel_padding_mask, create_encoder_padding_mask
 
 logger = tf.get_logger()
 logger.setLevel('ERROR')
@@ -88,7 +88,7 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
                                  fix_jumps=False, fill_mode='max'):
     """
     
-    :param batch_alignments: attention weights from autoregressive model.
+    :param batch_alignments: attention weights from autoregressive models.
     :param mels: mel spectrograms.
     :param phonemes: phoneme sequence.
     :param weighted: if True use weighted average of durations of heads, best head if False.
