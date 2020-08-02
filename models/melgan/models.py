@@ -25,6 +25,7 @@ class Generator(tf.keras.models.Model):
         self.model_layers += [tf.keras.activations.tanh()]
         input_signature = [tf.TensorSpec(shape=[None, None, mel_channels], dtype=tf.float32)]
         self.debug = debug
+        self.mel_channels = mel_channels
         self.call = self._apply_signature(self._call, signature=input_signature)
     
     def _apply_signature(self, function, signature):
