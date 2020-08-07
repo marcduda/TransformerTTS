@@ -3,7 +3,7 @@ from pathlib import Path
 import tensorflow as tf
 
 from utils.audio import Audio
-from utils.display import tight_grid, buffer_image
+from utils.display import tight_grid, buffer_image, gen_plot
 from utils.vec_ops import norm_tensor
 from utils.decorators import ignore_exception
 
@@ -105,6 +105,13 @@ class SummaryManager:
         buf = buffer_image(figure)
         img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
         self.add_image(tag, tf.expand_dims(img_tf, 0))
+    
+    @ignore_exception
+    def display_plot(self, plot, tag=''):
+        buf = gen_plot(plot)
+        image = tf.image.decode_png(buf.getvalue(), channels=4)
+        image = tf.expand_dims(image, 0)
+        self.add_image(tag=tag, image=image)
     
     @control_frequency
     @ignore_exception

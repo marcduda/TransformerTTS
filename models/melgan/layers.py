@@ -12,27 +12,37 @@ class ReplicationPadding(tf.keras.layers.Layer):
 
 
 class PaddedWNConv1D(tf.keras.layers.Layer):
-    def __init__(self, channels: int, kernel_size: int, dilation: int = 1, padding: int = None, strides: int = 1,
-                 **kwargs):
+    def __init__(self, channels: int, kernel_size: int, dilation=1, padding: int = None, strides=1,
+                 groups=1, **kwargs):
         super(PaddedWNConv1D, self).__init__(**kwargs)
-        
+        assert kernel_size % 2 == 1, 'Kernel size must be odd.'
         if padding is None:
             if strides > 1:
                 raise ValueError('Need to specify padding dimension if strides > 1.')
             padding = (kernel_size - 1) // 2 * dilation
-            
+            # padding = (kernel_size//2) * dilation
+        
         self.layers = []
         if padding > 0:
             self.layers += [ReplicationPadding(pad_size=padding)]
-        self.layers += [tfa.layers.WeightNormalization(
+        self.layers += [
+            tfa.layers.WeightNormalization(
             tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
-                                   **kwargs))]
-    
-    def __call__(self, x, **kwargs):
+                                   groups=groups))]
+            # tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation)
+        # )
+        # ]
+        # if groups ==1: # TF ADDONS not compatible with tf2.3 (groups are only in 2.3)
+        #     self.layers += [tfa.layers.WeightNormalization(
+        #          tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation, groups=groups))]
+        # else:
+        #     self.layers += [tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
+        #                                groups=groups)]
+    def __call__(self, x):
         for layer in self.layers:
             x = layer(x)
         return x
-
+    
 
 class ResidualBlock(tf.keras.layers.Layer):
     def __init__(self, channels: int, dilation: int, kernel_size: int, leaky_alpha: float, **kwargs):
@@ -64,7 +74,8 @@ class ResidualStack(tf.keras.layers.Layer):
         self.n_layers = n_layers
         self.channels = channels
         self.residual_blocks = [
-            ResidualBlock(channels=channels, dilation=kernel_size ** i, leaky_alpha=leaky_alpha)
+            ResidualBlock(channels=channels, kernel_size=kernel_size, dilation=kernel_size ** i,
+                          leaky_alpha=leaky_alpha)
             for i in range(n_layers)
         ]
     
@@ -94,18 +105,32 @@ class Upscale1D(tf.keras.layers.Layer):
 class DiscriminatorBlock(tf.keras.layers.Layer):
     def __init__(self, leaky_alpha: float = 0.2, **kwargs):
         super(DiscriminatorBlock, self).__init__(**kwargs)
+        groups = [4,16,64,256,64]
+        # groups = [1,1,1,1,1]
         self.model_layers = []
         self.model_layers += [PaddedWNConv1D(channels=16, kernel_size=15)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=64, kernel_size=41, groups=4, strides=4, padding=20)]
+        self.model_layers += [PaddedWNConv1D(channels=64, kernel_size=41, groups=groups[0], strides=4, padding=20)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=256, kernel_size=41, groups=16, strides=4, padding=20)]
+        self.model_layers += [PaddedWNConv1D(channels=256, kernel_size=41, groups=groups[1], strides=4, padding=20)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, groups=64, strides=4, padding=20)]
+        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, groups=groups[2], strides=4, padding=20)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, groups=256, strides=4, padding=20)]
+        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, groups=groups[3], strides=4, padding=20)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=5, groups=64)]
+        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=5, groups=groups[4])]
+        # self.model_layers = []
+        # self.model_layers += [PaddedWNConv1D(channels=16, kernel_size=15)]
+        # self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
+        # self.model_layers += [PaddedWNConv1D(channels=64, kernel_size=41, strides=4, padding=20)]
+        # self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
+        # self.model_layers += [PaddedWNConv1D(channels=256, kernel_size=41, strides=4, padding=20)]
+        # self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
+        # self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, strides=4, padding=20)]
+        # self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
+        # self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, strides=4, padding=20)]
+        # self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
+        # self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=5)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
         self.model_layers += [PaddedWNConv1D(channels=1, kernel_size=3)]
         self.get_output_at_layers = [1, 3, 5, 7, 9, 11]

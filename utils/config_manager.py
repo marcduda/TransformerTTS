@@ -13,8 +13,8 @@ from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 class ConfigManager:
     
     def __init__(self, config_path: str, model_kind: str, session_name: str = None):
-        if model_kind not in ['autoregressive', 'forward']:
-            raise TypeError(f"model_kind must be in {['autoregressive', 'forward']}")
+        # if model_kind not in ['autoregressive', 'forward']:
+        #     raise TypeError(f"model_kind must be in {['autoregressive', 'forward']}")
         self.config_path = Path(config_path)
         self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()
@@ -112,8 +112,10 @@ class ConfigManager:
                                              encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
                                              encoder_attention_conv_kernel=self.config['encoder_attention_conv_kernel'],
                                              decoder_attention_conv_kernel=self.config['decoder_attention_conv_kernel'],
-                                             encoder_attention_conv_filters=self.config['encoder_attention_conv_filters'],
-                                             decoder_attention_conv_filters=self.config['decoder_attention_conv_filters'],
+                                             encoder_attention_conv_filters=self.config[
+                                                 'encoder_attention_conv_filters'],
+                                             decoder_attention_conv_filters=self.config[
+                                                 'decoder_attention_conv_filters'],
                                              postnet_conv_filters=self.config['postnet_conv_filters'],
                                              postnet_conv_layers=self.config['postnet_conv_layers'],
                                              postnet_kernel_size=self.config['postnet_kernel_size'],
@@ -154,15 +156,17 @@ class ConfigManager:
     def compile_model(self, model):
         if self.model_kind == 'autoregressive':
             model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
+        elif self.model_kind == 'melgan':
+            model._compile(optimizer=self.new_adam(self.learning_rate, beta_1=.5, beta_2=.9))
         else:
             model._compile(optimizer=self.new_adam(self.learning_rate))
     
     # TODO: move to model
     @staticmethod
-    def new_adam(learning_rate):
+    def new_adam(learning_rate, beta_1=0.9, beta_2=0.98, ):
         return tf.keras.optimizers.Adam(learning_rate,
-                                        beta_1=0.9,
-                                        beta_2=0.98,
+                                        beta_1=beta_1,
+                                        beta_2=beta_2,
                                         epsilon=1e-9)
     
     def dump_config(self):

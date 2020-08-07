@@ -4,6 +4,7 @@ import librosa
 import numpy as np
 import librosa.display
 from matplotlib import pyplot as plt
+import tensorflow as tf
 
 
 class Audio():
@@ -26,12 +27,36 @@ class Audio():
             fmin=self.config['f_min'],
             fmax=self.config['f_max'])
     
+    def _linear_to_mel_tf(self, S):
+        linear_to_mel_weight_matrix = tf.signal.linear_to_mel_weight_matrix(
+            num_mel_bins=self.config['mel_channels'],
+            num_spectrogram_bins=self.config['n_fft']//2 + 1,
+            sample_rate=self.config['sampling_rate'],
+            lower_edge_hertz=self.config['f_min'],
+            upper_edge_hertz=self.config['f_max'])
+        return  tf.tensordot(S, linear_to_mel_weight_matrix, 1)
+    
     def _stft(self, y):
         return librosa.stft(
             y=y,
             n_fft=self.config['n_fft'],
             hop_length=self.config['hop_length'],
-            win_length=self.config['win_length'])
+            win_length=self.config['win_length'],)
+    
+    def _stft_tf(self, y, **kwargs):
+        return tf.signal.stft(
+            y,
+            frame_length=self.config['win_length'],
+            frame_step=self.config['hop_length'],
+            fft_length=self.config['n_fft'],
+            window_fn=tf.signal.hann_window,
+            pad_end=True,
+            **kwargs)
+    
+    def mel_spectrogram_tf(self, wav):
+        D = self._stft_tf(wav)
+        S = self._linear_to_mel_tf(tf.abs(D))
+        return self._normalize(S)
     
     def mel_spectrogram(self, wav):
         """ This is what the model is trained to reproduce. """
