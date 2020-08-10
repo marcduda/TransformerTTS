@@ -39,7 +39,7 @@ cm.create_remove_dirs(clear_dir=args.clear_dir,
 cm.dump_config()
 cm.print_config()
 generator = Generator(cm.config['mel_channels'], debug=cm.config['debug'])
-discriminator = MultiScaleDiscriminator(debug=cm.config['debug'])
+discriminator = MultiScaleDiscriminator(debug=cm.config['debug'], wav_mask_value=-1) # TODO: define masking values in config
 cm.compile_model(generator)
 cm.compile_model(discriminator)
 trainer = GANTrainer(generator, discriminator, debug=cm.config['debug'])
@@ -79,11 +79,12 @@ for _ in t:
         summary_manager.display_plot(tag='TrainPredWav', plot=out['pred_wav'][0])
         summary_manager.display_plot(tag='TrainTargetWav', plot=wav[0])
         
-    if generator.step % cm.config['audio_prediction_frequency'] == 0:
+    if (generator.step % cm.config['audio_prediction_frequency'] == 0) or (generator.step == 1):
         summary_manager.add_audio('PredWav', out['pred_wav'], cm.config['sampling_rate'])
         # vmel, vwav = valid_dataset.next_batch()
         vout = generator.forward(test_batch[0])
         summary_manager.add_audio('ValidWav', vout, cm.config['sampling_rate'])
+        summary_manager.add_audio('TargetWav', wav, cm.config['sampling_rate'])
     
     if generator.step % cm.config['weights_save_frequency'] == 0:
         save_path = manager.save()

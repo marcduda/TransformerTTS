@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from utils.audio import Audio
 
+
 class MetadataToDataset:
     def __init__(self,
                  data_directory,
@@ -59,12 +60,13 @@ class MetadataToDataset:
             y_len = tf.shape(y)[0]
             offset = tf.random.uniform([1], 0, max(1, y_len - self.max_wav_len), dtype=tf.int32)[0]
             y = y[offset: offset + self.max_wav_len]
+            # y = y[offset: 2*offset] # TODO: remove, testing only
         return y
     
     def wav_to_mel(self, wav):
         return self.audio.mel_spectrogram_tf(wav)
     
-    def _read_sample(self, sample, mel = None):
+    def _read_sample(self, sample, mel=None):
         wav = self.read_wav((self.wav_directory / sample[0]).with_suffix('.wav').as_posix())
         if mel is None:
             mel = self.wav_to_mel(wav)
@@ -79,6 +81,7 @@ class MetadataToDataset:
         # TODO: these should be define with preprocessor
         output_types = (tf.float32, tf.float32)
         padded_shapes = ([-1, self.audio.config['mel_channels']], [-1, 1])
+        padding_values = (tf.constant(0, dtype=tf.float32), tf.constant(-1, dtype=tf.float32))
         return Dataset(
             samples=self.data,
             preprocessor=self._process_sample,
@@ -86,7 +89,8 @@ class MetadataToDataset:
             output_types=output_types,
             padded_shapes=padded_shapes,
             shuffle=shuffle,
-            drop_remainder=drop_remainder)
+            drop_remainder=drop_remainder,
+            padding_values=padding_values)
     
     @classmethod
     def get_default_training_from_config(cls, config, preprocessor, metadata_reader=None):
@@ -122,6 +126,7 @@ class Dataset:
                  batch_size: int,
                  padded_shapes: tuple,
                  output_types: tuple,
+                 padding_values: tuple,
                  shuffle=True,
                  drop_remainder=True,
                  seed=42):
@@ -132,7 +137,8 @@ class Dataset:
                                                  output_types=output_types)
         dataset = dataset.padded_batch(batch_size,
                                        padded_shapes=padded_shapes,
-                                       drop_remainder=drop_remainder)
+                                       drop_remainder=drop_remainder,
+                                       padding_values=padding_values)
         self.dataset = dataset
         self.data_iter = iter(dataset.repeat(-1))
     

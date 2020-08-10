@@ -20,7 +20,6 @@ class PaddedWNConv1D(tf.keras.layers.Layer):
             if strides > 1:
                 raise ValueError('Need to specify padding dimension if strides > 1.')
             padding = (kernel_size - 1) // 2 * dilation
-            # padding = (kernel_size//2) * dilation
         
         self.layers = []
         if padding > 0:
@@ -28,23 +27,24 @@ class PaddedWNConv1D(tf.keras.layers.Layer):
         if weight_norm:
             self.layers += [
                 tfa.layers.WeightNormalization(
-                tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
-                                       groups=groups))]
+                    tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
+                                           groups=groups))]
         else:
             self.layers += [
-            tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
-                                   groups=groups)]
+                tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
+                                       groups=groups)]
         # if groups ==1: # TF ADDONS not compatible with tf2.3 (groups are only in 2.3)
         #     self.layers += [tfa.layers.WeightNormalization(
         #          tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation, groups=groups))]
         # else:
         #     self.layers += [tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
         #                                groups=groups)]
+    
     def __call__(self, x):
         for layer in self.layers:
             x = layer(x)
         return x
-    
+
 
 class ResidualBlock(tf.keras.layers.Layer):
     def __init__(self, channels: int, dilation: int, kernel_size: int, leaky_alpha: float, **kwargs):
@@ -107,20 +107,26 @@ class Upscale1D(tf.keras.layers.Layer):
 class DiscriminatorBlock(tf.keras.layers.Layer):
     def __init__(self, leaky_alpha: float = 0.2, **kwargs):
         super(DiscriminatorBlock, self).__init__(**kwargs)
-        groups = [4,16,64,256,64]
-        # groups = [1,1,1,1,1]
+        groups = [4, 16, 64, 256, 64]
+        f_b_a = True  # features_before_activation
+        # groups = [1,1,1,1,1] #TODO : restore, CPU testing only
         self.model_layers = []
-        self.model_layers += [PaddedWNConv1D(channels=16, kernel_size=15)]
-        self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=64, kernel_size=41, groups=groups[0], strides=4, padding=20)]
-        self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=256, kernel_size=41, groups=groups[1], strides=4, padding=20)]
-        self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, groups=groups[2], strides=4, padding=20)]
-        self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, groups=groups[3], strides=4, padding=20)]
-        self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=5, groups=groups[4])]
+        # model_layers have two elements: keras layer, is_output_feature bool
+        self.model_layers += [(PaddedWNConv1D(channels=16, kernel_size=15), f_b_a)]
+        self.model_layers += [(tf.keras.layers.LeakyReLU(alpha=leaky_alpha), not f_b_a)]
+        self.model_layers += [
+            (PaddedWNConv1D(channels=64, kernel_size=41, groups=groups[0], strides=4, padding=20), f_b_a)]
+        self.model_layers += [(tf.keras.layers.LeakyReLU(alpha=leaky_alpha), not f_b_a)]
+        self.model_layers += [
+            (PaddedWNConv1D(channels=256, kernel_size=41, groups=groups[1], strides=4, padding=20), f_b_a)]
+        self.model_layers += [(tf.keras.layers.LeakyReLU(alpha=leaky_alpha), not f_b_a)]
+        self.model_layers += [
+            (PaddedWNConv1D(channels=1024, kernel_size=41, groups=groups[2], strides=4, padding=20), f_b_a)]
+        self.model_layers += [(tf.keras.layers.LeakyReLU(alpha=leaky_alpha), not f_b_a)]
+        self.model_layers += [
+            (PaddedWNConv1D(channels=1024, kernel_size=41, groups=groups[3], strides=4, padding=20), f_b_a)]
+        self.model_layers += [(tf.keras.layers.LeakyReLU(alpha=leaky_alpha), not f_b_a)]
+        self.model_layers += [(PaddedWNConv1D(channels=1024, kernel_size=5, groups=groups[4]), f_b_a)]
         # self.model_layers = []
         # self.model_layers += [PaddedWNConv1D(channels=16, kernel_size=15)]
         # self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
@@ -133,14 +139,14 @@ class DiscriminatorBlock(tf.keras.layers.Layer):
         # self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=41, strides=4, padding=20)]
         # self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
         # self.model_layers += [PaddedWNConv1D(channels=1024, kernel_size=5)]
-        self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [PaddedWNConv1D(channels=1, kernel_size=3)]
-        self.get_output_at_layers = [1, 3, 5, 7, 9, 11]
+        self.model_layers += [(tf.keras.layers.LeakyReLU(alpha=leaky_alpha), not f_b_a)]
+        self.model_layers += [(PaddedWNConv1D(channels=2, kernel_size=3), False)]
+        # self.get_output_at_layers = [1, 3, 5, 7, 9, 11]
     
     def __call__(self, x, **kwargs):
         features = []
         for i, layer in enumerate(self.model_layers):
-            x = layer(x)
-            if i in self.get_output_at_layers:
+            x = layer[0](x)
+            if layer[1] is True:
                 features += [x]
         return x, features
