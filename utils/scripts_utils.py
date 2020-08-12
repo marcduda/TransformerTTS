@@ -1,6 +1,8 @@
 import traceback
 import argparse
+
 import tensorflow as tf
+
 
 def dynamic_memory_allocation():
     gpus = tf.config.experimental.list_physical_devices('GPU')
@@ -13,6 +15,8 @@ def dynamic_memory_allocation():
             print(len(gpus), 'Physical GPUs,', len(logical_gpus), 'Logical GPUs')
         except Exception:
             traceback.print_exc()
+
+
 def basic_train_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', dest='config', type=str)

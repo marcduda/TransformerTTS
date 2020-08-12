@@ -1,5 +1,6 @@
 from tqdm import trange
 import tensorflow as tf
+import numpy as np
 
 from preprocessing.datasets.audio_dataset import MetadataToDataset, MelGANPreprocessor
 from models.melgan.trainer import GANTrainer
@@ -7,6 +8,9 @@ from models.melgan.models import Generator, MultiScaleDiscriminator
 from utils.config_manager import ConfigManager
 from utils.logging import SummaryManager
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
+
+np.random.seed(42)
+tf.random.set_seed(42)
 
 dynamic_memory_allocation()
 parser = basic_train_parser()

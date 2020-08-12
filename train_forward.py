@@ -1,5 +1,3 @@
-import argparse
-import traceback
 from pathlib import Path
 from time import time
 
@@ -13,21 +11,11 @@ from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
 from models.transformer.transformer_utils import create_mel_padding_mask
+from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 
 np.random.seed(42)
 tf.random.set_seed(42)
-
-# dynamically allocate GPU
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        # Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        print(len(gpus), 'Physical GPUs,', len(logical_gpus), 'Logical GPUs')
-    except Exception:
-        traceback.print_exc()
+dynamic_memory_allocation()
 
 
 def build_file_list(data_dir: Path):
@@ -61,17 +49,7 @@ def validate(model,
     return val_loss['loss']
 
 
-# consuming CLI, creating paths and directories, load data
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
-                    help="deletes everything under this config's folder.")
-parser.add_argument('--reset_logs', dest='clear_logs', action='store_true',
-                    help="deletes logs under this config's folder.")
-parser.add_argument('--reset_weights', dest='clear_weights', action='store_true',
-                    help="deletes weights under this config's folder.")
-parser.add_argument('--session_name', dest='session_name', default=None)
+parser = basic_train_parser()
 args = parser.parse_args()
 
 config_manager = ConfigManager(config_path=args.config, model_kind='forward', session_name=args.session_name)
@@ -113,7 +91,7 @@ if manager.latest_checkpoint:
     print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
-    
+
 if config['debug'] is True:
     print('\nWARNING: DEBUG is set to True. Training in eager mode.')
 # main event
