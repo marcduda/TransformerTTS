@@ -108,7 +108,7 @@ class DiscriminatorBlock(tf.keras.layers.Layer):
     def __init__(self, leaky_alpha: float = 0.2, **kwargs):
         super(DiscriminatorBlock, self).__init__(**kwargs)
         groups = [4, 16, 64, 256, 64]
-        f_b_a = True  # features_before_activation
+        f_b_a = False  # features_before_activation
         # groups = [1,1,1,1,1] #TODO : restore, CPU testing only
         self.model_layers = []
         # model_layers have two elements: keras layer, is_output_feature bool

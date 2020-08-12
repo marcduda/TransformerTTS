@@ -1,11 +1,10 @@
 import tensorflow as tf
 
 from models.melgan.layers import PaddedWNConv1D, Upscale1D, ResidualStack, DiscriminatorBlock
-from utils.losses import masked_mean_absolute_error
 
 
 class Generator(tf.keras.models.Model):
-    def __init__(self, mel_channels: int, n_layers=(4,4,4,4), leaky_alpha = .2, debug = False, **kwargs):
+    def __init__(self, mel_channels: int, n_layers=(4, 4, 4, 4), leaky_alpha=.2, debug=False, **kwargs):
         super(Generator, self).__init__(**kwargs)
         self.model_layers = []
         self.model_layers += [PaddedWNConv1D(channels=512, kernel_size=7, dilation=1)]
@@ -50,7 +49,7 @@ class Generator(tf.keras.models.Model):
 
 
 class MultiScaleDiscriminator(tf.keras.models.Model):
-    def __init__(self, wav_mask_value: float, debug = False, **kwargs):
+    def __init__(self, wav_mask_value: float, debug=False, **kwargs):
         super(MultiScaleDiscriminator, self).__init__(**kwargs)
         # TODO: changed same padding from valid, check
         self.mask_value = wav_mask_value

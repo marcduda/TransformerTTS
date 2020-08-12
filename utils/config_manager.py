@@ -158,7 +158,7 @@ class ConfigManager:
             model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
         elif self.model_kind == 'melgan':
             model._compile(optimizer=self.new_adam(self.learning_rate, beta_1=.5, beta_2=.9))
-        else:
+        elif self.model_kind == 'forward':
             model._compile(optimizer=self.new_adam(self.learning_rate))
     
     # TODO: move to model
