@@ -5,7 +5,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_manager import ConfigManager
+from utils.config_manager import Config
 from preprocessing.data_handling import Dataset, ForwardDataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
@@ -52,7 +52,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config_manager = ConfigManager(config_path=args.config, model_kind='forward', session_name=args.session_name)
+config_manager = Config(config_path=args.config, model_kind='forward', session_name=args.session_name)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,

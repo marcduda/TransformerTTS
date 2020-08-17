@@ -401,14 +401,14 @@ class ForwardTransformer(tf.keras.models.Model):
         target_durations = tf.expand_dims(target_durations, -1)
         mel_len = int(tf.shape(target_sequence)[1])
         model_out = self.__call__(input_sequence, target_durations, training=False)
-        loss, loss_vals = weighted_sum_losses((target_sequence,
-                                               target_durations),
-                                              (model_out['mel'][:, :mel_len, :],
-                                               model_out['duration']),
-                                              self.loss,
-                                              self.loss_weights)
-        model_out.update({'loss': loss})
-        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
+        # loss, loss_vals = weighted_sum_losses((target_sequence,
+        #                                        target_durations),
+        #                                       (model_out['mel'][:, :mel_len, :],
+        #                                        model_out['duration']),
+        #                                       self.loss,
+        #                                       self.loss_weights)
+        # model_out.update({'loss': loss})
+        # model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
         return model_out
     
     def _forward(self, input_sequence, durations_scalar):

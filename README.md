@@ -131,7 +131,7 @@ tensorboard --logdir /logs/directory/
 ## Prediction
 Predict with either the Forward or Autoregressive model
 ```python
-from utils.config_manager import ConfigManager
+from utils.config_manager import Config
 from utils.audio import Audio
 
 config_loader = ConfigManager('/path/to/config/', model_kind='forward')

@@ -10,7 +10,7 @@ from models.transformer.models import AutoregressiveTransformer, ForwardTransfor
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 
 
-class ConfigManager:
+class Config:
     
     def __init__(self, config_path: str, model_kind: str, session_name: str = None):
         # if model_kind not in ['autoregressive', 'forward']:
@@ -21,10 +21,17 @@ class ConfigManager:
         self.config, self.data_config, self.model_config = self._load_config()
         self.git_hash = self._get_git_hash()
         if session_name is None:
-            if self.config['session_name'] is None:
-                session_name = self.git_hash
-        self.session_name = '_'.join(filter(None, [self.config_path.name, session_name]))
+            session_name = self.config['session_name']
+        self.session_name = session_name
+        self.complete_session_name = '_'.join(filter(None, [self.config_path.name, session_name]))
+        self.complete_session_name = session_name
+        self.data_dir = Path(self.config['data_directory'])
+        self.metadata_path = self.data_dir / self.config['metadata_filename']
+        self.wav_dir = self.data_dir / self.config['wav_subdir_name']
         self.base_dir, self.log_dir, self.train_datadir, self.weights_dir = self._make_folder_paths()
+        self.train_metadata_path = self.train_datadir / self.config['train_metadata_filename']
+        self.valid_metadata_path = self.train_datadir / self.config['valid_metadata_filename']
+        self.phonemized_metadata_path = self.train_datadir / 'phonemized_metadata.txt'
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'autoregressive':
             self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
@@ -56,7 +63,7 @@ class ConfigManager:
             print(f'WARNING: could not check git hash. {e}')
     
     def _make_folder_paths(self):
-        base_dir = Path(self.config['log_directory']) / self.session_name
+        base_dir = Path(self.config['log_directory']) / self.complete_session_name
         log_dir = base_dir / f'{self.model_kind}_logs'
         weights_dir = base_dir / f'{self.model_kind}_weights'
         train_datadir = self.config['train_data_directory']
@@ -176,7 +183,8 @@ class ConfigManager:
         with open(self.base_dir / 'data_config.yaml', 'w') as data_yaml:
             self.yaml.dump(self.data_config, data_yaml)
     
-    def create_remove_dirs(self, clear_dir: False, clear_logs: False, clear_weights: False):
+    def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
+        self.train_datadir.mkdir(exist_ok=True)
         self.base_dir.mkdir(exist_ok=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')

@@ -1,32 +1,36 @@
 from pathlib import Path
 from random import Random
 
+import numpy as np
 import tensorflow as tf
 
+from utils.config_manager import Config
 from utils.audio import Audio
+from preprocessing.text.tokenizer import Tokenizer
 
 
-class MetadataToDataset:
+class MetadataReader:
     def __init__(self,
-                 data_directory,
-                 preprocessor,
-                 audio_module: Audio,
-                 metadata_filename: str,
-                 wav_dirname: str,
-                 metadata_reader=None,
-                 max_wav_len=None):
-        
-        self.audio = audio_module
-        if metadata_reader is not None:
-            self.metadata_reader = metadata_reader
+                 data_directory: str,
+                 metadata_path: str,
+                 wav_path: str,
+                 metadata_reading_function=None, ):
+        if metadata_reading_function is not None:
+            self.metadata_reading_function = metadata_reading_function
         else:
-            self.metadata_reader = self._default_metadata_reader
+            self.metadata_reading_function = self._default_metadata_reader
+        
         self.data_directory = Path(data_directory)
-        self.metadata_path = self.data_directory / metadata_filename
-        self.wav_directory = self.data_directory / wav_dirname
+        self.metadata_path = Path(metadata_path)
+        self.wav_directory = Path(wav_path)
         self.data = self._build_file_list()
-        self.preprocessor = preprocessor
-        self.max_wav_len = max_wav_len
+    
+    def _build_file_list(self):
+        wav_list, text_list = self.metadata_reading_function(self.metadata_path)
+        file_list = [x.with_suffix('').name for x in self.wav_directory.iterdir() if x.suffix == '.wav']
+        for metadata_item in wav_list:
+            assert metadata_item in file_list, f'Missing file: metadata item {metadata_item}, was not found in {self.wav_directory}.'
+        return list(zip(wav_list, text_list))
     
     def _default_metadata_reader(self, metadata_path, column_sep='|'):
         wav_list = []
@@ -34,87 +38,302 @@ class MetadataToDataset:
         with open(metadata_path, 'r', encoding='utf-8') as f:
             for l in f.readlines():
                 l_split = l.split(column_sep)
-                filename, text = l_split[0], l_split[-1]
+                filename, text = l_split[0], l_split[1]
                 if filename.endswith('.wav'):
                     filename = filename.split('.')[0]
                 wav_list.append(filename)
                 text_list.append(text)
         return wav_list, text_list
     
-    def _build_file_list(self):
-        wav_list, text_list = self.metadata_reader(self.metadata_path)
-        file_list = [x.with_suffix('').name for x in self.wav_directory.iterdir() if x.suffix == '.wav']
-        for metadata_item in wav_list:
-            assert metadata_item in file_list, f'Missing file: metadata item {metadata_item}, was not found in {self.wav_directory}.'
-        return list(zip(wav_list, text_list))
+    @classmethod
+    def default_original_from_config(cls, config_manager: Config, metadata_reading_function=None):
+        return cls(data_directory=config_manager.train_datadir,
+                   metadata_reading_function=metadata_reading_function,
+                   metadata_path=config_manager.metadata_path,
+                   wav_path=config_manager.wav_dir)
     
-    def read_wav(self, wav_path, desired_channels=1, desired_samples=-1, name=None):
-        file = tf.io.read_file(wav_path)
-        # TODO: missing resampling if sr is different than audio.config['sample_rate']
-        y, sr = tf.audio.decode_wav(file,
-                                    desired_channels=desired_channels,
-                                    desired_samples=desired_samples,
-                                    name=name)
+    @classmethod
+    def default_all_phonemized_from_config(cls, config_manager: Config, metadata_reading_function=None):
+        return cls(data_directory=config_manager.train_datadir,
+                   metadata_reading_function=metadata_reading_function,
+                   metadata_path=config_manager.phonemized_metadata_path,
+                   wav_path=config_manager.wav_dir)
+    
+    @classmethod
+    def default_training_from_config(cls, config_manager: Config, metadata_reading_function=None):
+        return cls(data_directory=config_manager.train_datadir,
+                   metadata_reading_function=metadata_reading_function,
+                   metadata_path=config_manager.train_metadata_path,
+                   wav_path=config_manager.wav_dir)
+    
+    @classmethod
+    def default_validation_from_config(cls, config_manager: Config, metadata_reading_function=None):
+        return cls(data_directory=config_manager.train_datadir,
+                   metadata_reading_function=metadata_reading_function,
+                   metadata_path=config_manager.valid_metadata_path,
+                   wav_path=config_manager.wav_dir)
+
+
+class TextMelDataset:
+    def __init__(self,
+                 metadata_reader: MetadataReader,
+                 preprocessor,
+                 mel_directory: str):
+        self.metadata_reader = metadata_reader
+        self.preprocessor = preprocessor
+        self.mel_directory = Path(mel_directory)
+    
+    def _read_sample(self, sample):
+        sample_name = sample[0]
+        text = sample[1]
+        mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
+        return mel, text, sample_name
+    
+    def _process_sample(self, sample):
+        mel, text, sample_name = self._read_sample(sample)
+        return self.preprocessor(mel=mel, text=text, sample_name=sample_name)
+    
+    def get_dataset(self, batch_size, shuffle=True, drop_remainder=False):
+        return Dataset(
+            samples=self.metadata_reader.data,
+            preprocessor=self._process_sample,
+            batch_size=batch_size,
+            output_types=self.preprocessor.output_types,
+            padded_shapes=self.preprocessor.padded_shapes,
+            shuffle=shuffle,
+            drop_remainder=drop_remainder)
+    
+    @classmethod
+    def default_all_from_config(cls,
+                                config: Config,
+                                preprocessor,
+                                mel_directory: str = None,
+                                metadata_reading_function=None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        metadata_reader = MetadataReader.default_all_phonemized_from_config(config,
+                                                                            metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   metadata_reader=metadata_reader,
+                   mel_directory=mel_directory)
+    
+    @classmethod
+    def default_training_from_config(cls,
+                                     config: Config,
+                                     preprocessor,
+                                     mel_directory: str = None,
+                                     metadata_reading_function=None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        metadata_reader = MetadataReader.default_training_from_config(config,
+                                                                      metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   metadata_reader=metadata_reader,
+                   mel_directory=mel_directory)
+    
+    @classmethod
+    def default_validation_from_config(cls,
+                                       config: Config,
+                                       preprocessor,
+                                       mel_directory: str = None,
+                                       metadata_reading_function=None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        metadata_reader = MetadataReader.default_validation_from_config(config,
+                                                                        metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   metadata_reader=metadata_reader,
+                   mel_directory=mel_directory)
+
+
+class TextMelDurDataset:
+    def __init__(self,
+                 metadata_reader: MetadataReader,
+                 preprocessor,
+                 mel_directory: str):
+        self.metadata_reader = metadata_reader
+        self.preprocessor = preprocessor
+        self.mel_directory = Path(mel_directory)
+    
+    def _read_sample(self, sample):
+        sample_name = sample[0]
+        text = sample[1]
+        mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
+        durations = np.load(
+            (self.metadata_reader.data_directory / 'forward_data' / sample_name).with_suffix('.npy').as_posix())
+        return mel, text, durations, sample_name
+    
+    def _process_sample(self, sample):
+        mel, text, durations, sample_name = self._read_sample(sample)
+        return self.preprocessor(mel=mel, text=text, durations=durations, sample_name=sample_name)
+    
+    def get_dataset(self, batch_size, shuffle=True, drop_remainder=False):
+        return Dataset(
+            samples=self.metadata_reader.data,
+            preprocessor=self._process_sample,
+            batch_size=batch_size,
+            output_types=self.preprocessor.output_types,
+            padded_shapes=self.preprocessor.padded_shapes,
+            shuffle=shuffle,
+            drop_remainder=drop_remainder)
+    
+    @classmethod
+    def default_all_from_config(cls,
+                                config: Config,
+                                preprocessor,
+                                mel_directory: str = None,
+                                metadata_reading_function=None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        metadata_reader = MetadataReader.default_all_phonemized_from_config(config,
+                                                                            metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   metadata_reader=metadata_reader,
+                   mel_directory=mel_directory)
+    
+    @classmethod
+    def default_training_from_config(cls,
+                                     config: Config,
+                                     preprocessor,
+                                     mel_directory: str = None,
+                                     metadata_reading_function=None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        metadata_reader = MetadataReader.default_training_from_config(config,
+                                                                      metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   metadata_reader=metadata_reader,
+                   mel_directory=mel_directory)
+    
+    @classmethod
+    def default_validation_from_config(cls,
+                                       config: Config,
+                                       preprocessor,
+                                       mel_directory: str = None,
+                                       metadata_reading_function=None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        metadata_reader = MetadataReader.default_validation_from_config(config,
+                                                                        metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   metadata_reader=metadata_reader,
+                   mel_directory=mel_directory)
+
+
+class MelWavDataset:
+    def __init__(self,
+                 metadata_reader: MetadataReader,
+                 preprocessor,
+                 audio_module: Audio,
+                 mel_directory: str,
+                 max_wav_len=None, ):
+        
+        self.audio = audio_module
+        self.metadata_reader = metadata_reader
+        self.preprocessor = preprocessor
+        self.max_wav_len = max_wav_len
+        self.hop_len = self.audio.config['hop_length']
+        self.mel_directory = Path(mel_directory)
+    
+    def read_wav(self, wav_path: str):
+        y, sr = self.audio.load_wav(wav_path)
         y = tf.squeeze(y)
-        if self.max_wav_len is not None:
-            y_len = tf.shape(y)[0]
-            offset = tf.random.uniform([1], 0, max(1, y_len - self.max_wav_len), dtype=tf.int32)[0]
-            y = y[offset: offset + self.max_wav_len]
-            # y = y[offset: 2*offset] # TODO: remove, testing only
         return y
     
     def wav_to_mel(self, wav):
-        return self.audio.mel_spectrogram_tf(wav)
+        return self.audio.mel_spectrogram(wav)
     
-    def _read_sample(self, sample, mel=None):
-        wav = self.read_wav((self.wav_directory / sample[0]).with_suffix('.wav').as_posix())
-        if mel is None:
-            mel = self.wav_to_mel(wav)
-        text = sample[1]
-        return mel, text, wav
+    def _read_sample(self, sample):
+        sample_name = sample[0]
+        y = self.read_wav((self.metadata_reader.wav_directory / sample_name).with_suffix('.wav').as_posix())
+        mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
+        if self.max_wav_len is not None:
+            y_len = tf.shape(y)[0]
+            offset = tf.random.uniform([1], 0, max(1, y_len - self.max_wav_len), dtype=tf.int32)[0]
+            offset = (offset // self.hop_len) * self.hop_len  # ensure wav mel correspondence
+            y = y[offset: offset + self.max_wav_len]
+            mel = mel[offset // self.hop_len:(offset + self.max_wav_len) // self.hop_len]
+        return mel, y, sample_name
     
     def _process_sample(self, sample):
-        mel, text, wav = self._read_sample(sample)
-        return self.preprocessor(mel=mel, text=text, wav=wav)
+        mel, wav, sample_name = self._read_sample(sample)
+        return self.preprocessor(mel=mel, wav=wav, sample_name=sample_name)
     
-    def get_dataset(self, batch_size, shuffle=True, drop_remainder=True):
-        # TODO: these should be define with preprocessor
-        output_types = (tf.float32, tf.float32)
-        padded_shapes = ([-1, self.audio.config['mel_channels']], [-1, 1])
-        padding_values = (tf.constant(0, dtype=tf.float32), tf.constant(-1, dtype=tf.float32))
+    def get_dataset(self, batch_size, shuffle=True, drop_remainder=False):
         return Dataset(
-            samples=self.data,
+            samples=self.metadata_reader.data,
             preprocessor=self._process_sample,
             batch_size=batch_size,
-            output_types=output_types,
-            padded_shapes=padded_shapes,
+            output_types=self.preprocessor.output_types,
+            padded_shapes=self.preprocessor.padded_shapes,
             shuffle=shuffle,
-            drop_remainder=drop_remainder,
-            padding_values=padding_values)
+            drop_remainder=drop_remainder)
     
     @classmethod
-    def get_default_training_from_config(cls, config, preprocessor, metadata_reader=None):
-        audio = Audio(config)
-        return cls(data_directory=config['data_directory'],
-                   preprocessor=preprocessor,
-                   audio_module=audio,
-                   metadata_reader=metadata_reader,
-                   metadata_filename=config['train_metadata_filename'],
-                   wav_dirname=config['wav_subdir_name'],
-                   max_wav_len=config['max_wav_segment_lenght'])
-    
-    @classmethod
-    def get_default_validation_from_config(cls, config, preprocessor, metadata_reader=None, max_wav_len=None):
-        audio = Audio(config)
+    def default_all_from_config(cls,
+                                config: Config,
+                                preprocessor,
+                                mel_directory: str,
+                                metadata_reading_function=None,
+                                max_wav_len: int = None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        audio = Audio(config.config)
         if max_wav_len is None:
-            max_wav_len = config['max_wav_segment_lenght']
-        return cls(data_directory=config['data_directory'],
-                   preprocessor=preprocessor,
+            max_wav_len = config.config['max_wav_segment_lenght']
+        elif max_wav_len == -1:
+            max_wav_len = None
+        metadata_reader = MetadataReader.default_all_phonemized_from_config(config,
+                                                                            metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
                    audio_module=audio,
                    metadata_reader=metadata_reader,
-                   metadata_filename=config['valid_metadata_filename'],
-                   wav_dirname=config['wav_subdir_name'],
-                   max_wav_len=max_wav_len)
+                   max_wav_len=max_wav_len,
+                   mel_directory=mel_directory)
+    
+    @classmethod
+    def default_training_from_config(cls,
+                                     config: Config,
+                                     preprocessor,
+                                     metadata_reading_function=None,
+                                     max_wav_len: int = None,
+                                     mel_directory: str = None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        audio = Audio(config.config)
+        if max_wav_len is None:
+            max_wav_len = config.config['max_wav_segment_lenght']
+        elif max_wav_len == -1:
+            max_wav_len = None
+        metadata_reader = MetadataReader.default_training_from_config(config,
+                                                                      metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   audio_module=audio,
+                   metadata_reader=metadata_reader,
+                   max_wav_len=max_wav_len,
+                   mel_directory=mel_directory)
+    
+    @classmethod
+    def default_validation_from_config(cls,
+                                       config: Config,
+                                       preprocessor,
+                                       metadata_reading_function=None,
+                                       max_wav_len: int = None,
+                                       mel_directory: str = None):
+        if mel_directory is None:
+            mel_directory = config.train_datadir / 'mels'
+        audio = Audio(config.config)
+        if max_wav_len is None:
+            max_wav_len = config.config['max_wav_segment_lenght']
+        elif max_wav_len == -1:
+            max_wav_len = None
+        metadata_reader = MetadataReader.default_validation_from_config(config,
+                                                                        metadata_reading_function=metadata_reading_function)
+        return cls(preprocessor=preprocessor,
+                   audio_module=audio,
+                   metadata_reader=metadata_reader,
+                   max_wav_len=max_wav_len,
+                   mel_directory=mel_directory)
 
 
 class Dataset:
@@ -126,7 +345,7 @@ class Dataset:
                  batch_size: int,
                  padded_shapes: tuple,
                  output_types: tuple,
-                 padding_values: tuple,
+                 padding_values: tuple = None,
                  shuffle=True,
                  drop_remainder=True,
                  seed=42):
@@ -159,25 +378,43 @@ class Dataset:
 
 
 class MelGANPreprocessor:
-    def __call__(self, mel, text, wav):
-        return mel, tf.expand_dims(wav, -1)
+    def __init__(self, config):
+        self.output_types = (tf.float32, tf.float32, tf.string)
+        self.padded_shapes = ([-1, config['mel_channels']], [-1, 1], [])
+        self.padding_values = (
+            tf.constant(0, dtype=tf.float32), tf.constant(-1, dtype=tf.float32))  # TODO: get padding from config
+    
+    def __call__(self, mel, wav, sample_name):
+        return mel, tf.expand_dims(wav, -1), sample_name
 
-# def mel_wav_from_metafile(wav_folder: str, config: dict, metafile: str, target_dir: str, columns_sep: str = '|'):
-#     audio = Audio(config)
-#     audio_file_list = []
-#     wav_folder = Path(wav_folder)
-#     target_dir = Path(target_dir)
-#     with open(metafile, 'r', encoding='utf-8') as f:
-#         for l in f.readlines():
-#             filename = l.split(columns_sep)[0]
-#             if filename.endswith('.wav'):
-#                 filename = filename.split('.')[0]
-#             audio_file_list.append(filename)
-#
-#     for i in tqdm.tqdm(range(len(audio_file_list))):
-#         filename = audio_file_list[i]
-#         wav_path = (wav_folder / filename).with_suffix('.wav')
-#         y, sr = librosa.load(wav_path, sr=audio.config['sampling_rate'])
-#         mel = audio.mel_spectrogram(y)
-#         file_path = (target_dir / filename).with_suffix('.npy')
-#         np.save(file_path, (y, mel))
+
+class ForwardPreprocessor:
+    def __init__(self, config, tokenizer: Tokenizer):
+        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string)
+        self.padded_shapes = ([-1, config['mel_channels']], [-1], [-1], [])
+        self.padding_values = None
+        self.tokenizer = tokenizer
+    
+    def __call__(self, text, mel, durations, sample_name):
+        encoded_phonemes = self.tokenizer(text)
+        return mel, encoded_phonemes, durations, sample_name
+
+
+class AutoregressivePreprocessor:
+    
+    def __init__(self,
+                 config,
+                 tokenizer: Tokenizer):
+        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string)
+        self.padded_shapes = ([-1, config['mel_channels']], [-1], [-1], [])
+        self.padding_values = None
+        self.start_vec = np.ones((1, config['mel_channels'])) * config['mel_start_value']
+        self.end_vec = np.ones((1, config['mel_channels'])) * config['mel_end_value']
+        self.tokenizer = tokenizer
+    
+    def __call__(self, mel, text, sample_name):
+        encoded_phonemes = self.tokenizer(text)
+        norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
+        stop_probs = np.ones((norm_mel.shape[0]))
+        stop_probs[-1] = 2
+        return norm_mel, encoded_phonemes, stop_probs, sample_name

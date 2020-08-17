@@ -5,7 +5,7 @@ import numpy as np
 from preprocessing.datasets.audio_dataset import MetadataToDataset, MelGANPreprocessor
 from models.melgan.trainer import GANTrainer
 from models.melgan.models import Generator, MultiScaleDiscriminator
-from utils.config_manager import ConfigManager
+from utils.config_manager import Config
 from utils.logging import SummaryManager
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 
@@ -16,7 +16,7 @@ dynamic_memory_allocation()
 parser = basic_train_parser()
 args = parser.parse_args()
 
-cm = ConfigManager(args.config, model_kind='melgan', session_name=args.session_name)
+cm = Config(args.config, model_kind='melgan', session_name=args.session_name)
 assert cm.config['max_wav_segment_lenght'] % cm.config['hop_length'] == 0, \
     f"Error: max_wav_segment_length ({cm.config['max_wav_segment_lenght']}) must be multiple of hop_length ({cm.config['hop_length']})."
 
@@ -31,12 +31,12 @@ discriminator = MultiScaleDiscriminator(debug=cm.config['debug'],
 cm.compile_model(generator)
 cm.compile_model(discriminator)
 trainer = GANTrainer(generator, discriminator, debug=cm.config['debug'])
-preprocessor = MelGANPreprocessor()
-train_data_handler = MetadataToDataset.get_default_training_from_config(cm.config, preprocessor)
-valid_data_handler = MetadataToDataset.get_default_validation_from_config(cm.config, preprocessor,
-                                                                          max_wav_len=256 * 100)
-train_dataset = train_data_handler.get_dataset(batch_size=cm.config['batch_size'], shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(batch_size=3, shuffle=False)
+preprocessor = MelGANPreprocessor(cm.config)
+train_data_handler = MetadataToDataset.default_training_from_config(cm.config, preprocessor, max_wav_len=None)
+valid_data_handler = MetadataToDataset.default_validation_from_config(cm.config, preprocessor,
+                                                               max_wav_len=256 * 100)
+train_dataset = train_data_handler.mel_wav_dataset(batch_size=cm.config['batch_size'], shuffle=True)
+valid_dataset = valid_data_handler.mel_wav_dataset(batch_size=3, shuffle=False)
 summary_manager = SummaryManager(model=generator, log_dir=cm.log_dir, config=cm.config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  gen_optimizer=generator.optimizer,

@@ -10,7 +10,13 @@ import tensorflow as tf
 class Audio():
     def __init__(self, config: dict):
         self.config = config
-        self.normalizer = getattr(sys.modules[__name__], config['normalizer'])(config)
+        self.normalizer = getattr(sys.modules[__name__], config['normalizer'])()
+        if config['use_librosa']:
+            self.load_wav = self._load_wav
+            self.mel_spectrogram = self._mel_spectrogram
+        else:
+            self.load_wav = self._load_wav_tf
+            self.mel_spectrogram = self._mel_spectrogram_tf
     
     def _normalize(self, S):
         return self.normalizer.normalize(S)
@@ -53,16 +59,16 @@ class Audio():
             pad_end=True,
             **kwargs)
     
-    def mel_spectrogram_tf(self, wav):
+    def _mel_spectrogram_tf(self, wav):
         D = self._stft_tf(wav)
         S = self._linear_to_mel_tf(tf.abs(D))
         return self._normalize(S)
     
-    def mel_spectrogram(self, wav):
+    def _mel_spectrogram(self, wav):
         """ This is what the model is trained to reproduce. """
-        D = self._stft(wav)
+        D = self._stft(np.array(wav))
         S = self._linear_to_mel(np.abs(D))
-        return self._normalize(S)
+        return self._normalize(S).T
     
     def reconstruct_waveform(self, mel, n_iter=32):
         """ Uses Griffin-Lim phase reconstruction to convert from a normalized
@@ -95,22 +101,32 @@ class Audio():
                                       fmax=self.config['f_max'])
         f.add_subplot(ax)
         return f
+    
+    def _load_wav(self, wav_path):
+        y, sr = librosa.load(wav_path, sr=self.config['sampling_rate'])
+        return y, sr
+    
+    def _load_wav_tf(self, wav_path):
+        file = tf.io.read_file(wav_path)
+        
+        # TODO: missing resampling if sr is different than audio.config['sample_rate']
+        y, sr = tf.audio.decode_wav(file,
+                                    desired_channels=1,
+                                    desired_samples=-1)
+        return y, sr
 
 
 class Normalizer:
-    def __init__(self, config: dict):
-        self.config = config
-    
-    def normalize(self):
+    def normalize(self, S):
         raise NotImplementedError
     
-    def denormalize(self):
+    def denormalize(self, S):
         raise NotImplementedError
 
 
 class MelGAN(Normalizer):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self):
+        super().__init__()
         self.clip_min = 1.0e-5
     
     def normalize(self, S):
@@ -122,8 +138,8 @@ class MelGAN(Normalizer):
 
 
 class WaveRNN(Normalizer):
-    def __init__(self, config: dict):
-        super().__init__(config)
+    def __init__(self):
+        super().__init__()
         self.min_level_db = - 100
         self.max_norm = 4
     
