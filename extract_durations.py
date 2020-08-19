@@ -35,8 +35,6 @@ parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_tru
                     help='Fill zero durations with ones. Reduces next non-zero phoneme duration in sequence to compensate.')
 parser.add_argument('--use_GT', action='store_true',
                     help='Use ground truth mel instead of predicted mel to train forward model.')
-parser.add_argument('--store_predictions', action='store_true',
-                    help='Store the model predictions for faster alignment RE-computation.')
 args = parser.parse_args()
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best
@@ -63,7 +61,7 @@ data_prep = AutoregressivePreprocessor(config=config,
 data_handler = TextMelDataset.default_all_from_config(config_manager,
                                                       preprocessor=data_prep)
 
-target_dir = config_manager.train_datadir / f'forward_data'
+target_dir = config_manager.train_datadir / f'durations'
 target_dir.mkdir(exist_ok=True)
 config_manager.dump_config()
 script_batch_size = 5 * config['batch_size']

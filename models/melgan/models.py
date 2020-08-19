@@ -49,11 +49,10 @@ class Generator(tf.keras.models.Model):
 
 
 class MultiScaleDiscriminator(tf.keras.models.Model):
-    def __init__(self, wav_mask_value: float, debug=False, **kwargs):
+    def __init__(self, debug=False, **kwargs):
         super(MultiScaleDiscriminator, self).__init__(**kwargs)
         # TODO: changed same padding from valid, check
-        self.mask_value = wav_mask_value
-        self.masking = tf.keras.layers.Masking(mask_value=self.mask_value)
+        # self.masking = tf.keras.layers.Masking(mask_value=self.mask_value)
         self.pooling1 = tf.keras.layers.AvgPool1D(pool_size=4, strides=2, padding='same')
         self.pooling2 = tf.keras.layers.AvgPool1D(pool_size=4, strides=2, padding='same')
         self.d1 = DiscriminatorBlock()
@@ -70,7 +69,6 @@ class MultiScaleDiscriminator(tf.keras.models.Model):
             return tf.function(input_signature=signature)(function)
     
     def call(self, x, **kwargs):
-        x = self.masking(x)
         scaled1 = self.pooling1(x)
         scaled2 = self.pooling2(scaled1)
         out1, feats1 = self.d1(x)

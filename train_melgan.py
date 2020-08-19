@@ -1,8 +1,11 @@
+import traceback
+import argparse
+
 from tqdm import trange
 import tensorflow as tf
 import numpy as np
 
-from preprocessing.datasets.audio_dataset import MetadataToDataset, MelGANPreprocessor
+from preprocessing.datasets.audio_dataset import MelWavDataset, MelGANPreprocessor
 from models.melgan.trainer import GANTrainer
 from models.melgan.models import Generator, MultiScaleDiscriminator
 from utils.config_manager import Config
@@ -12,11 +15,22 @@ from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 np.random.seed(42)
 tf.random.set_seed(42)
 
-dynamic_memory_allocation()
+# dynamic_memory_allocation()
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Currently, memory growth needs to be the same across GPUs
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), 'Physical GPUs,', len(logical_gpus), 'Logical GPUs')
+    except Exception:
+        traceback.print_exc()
 parser = basic_train_parser()
+
 args = parser.parse_args()
 
-cm = Config(args.config, model_kind='melgan', session_name=args.session_name)
+cm = Config(args.config, model_kind='melgan')
 assert cm.config['max_wav_segment_lenght'] % cm.config['hop_length'] == 0, \
     f"Error: max_wav_segment_length ({cm.config['max_wav_segment_lenght']}) must be multiple of hop_length ({cm.config['hop_length']})."
 
@@ -26,17 +40,16 @@ cm.create_remove_dirs(clear_dir=args.clear_dir,
 cm.dump_config()
 cm.print_config()
 generator = Generator(cm.config['mel_channels'], debug=cm.config['debug'])
-discriminator = MultiScaleDiscriminator(debug=cm.config['debug'],
-                                        wav_mask_value=-1)  # TODO: define masking values in config
+discriminator = MultiScaleDiscriminator(debug=cm.config['debug'],)
+                                        # wav_mask_value=-1)  # TODO: define masking values in config
 cm.compile_model(generator)
 cm.compile_model(discriminator)
 trainer = GANTrainer(generator, discriminator, debug=cm.config['debug'])
 preprocessor = MelGANPreprocessor(cm.config)
-train_data_handler = MetadataToDataset.default_training_from_config(cm.config, preprocessor, max_wav_len=None)
-valid_data_handler = MetadataToDataset.default_validation_from_config(cm.config, preprocessor,
-                                                               max_wav_len=256 * 100)
-train_dataset = train_data_handler.mel_wav_dataset(batch_size=cm.config['batch_size'], shuffle=True)
-valid_dataset = valid_data_handler.mel_wav_dataset(batch_size=3, shuffle=False)
+train_data_handler = MelWavDataset.default_training_from_config(cm, preprocessor, max_wav_len=None)
+valid_data_handler = MelWavDataset.default_validation_from_config(cm, preprocessor, max_wav_len=-1)
+train_dataset = train_data_handler.get_dataset(batch_size=cm.config['batch_size'], shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(batch_size=3, shuffle=False)
 summary_manager = SummaryManager(model=generator, log_dir=cm.log_dir, config=cm.config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  gen_optimizer=generator.optimizer,
@@ -56,23 +69,25 @@ test_batch = valid_dataset.next_batch()
 t = trange(generator.step, cm.config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {generator.step}')
-    mel, wav = train_dataset.next_batch()
+    mel, wav, filename = train_dataset.next_batch()
     # out = trainer.mse_train_step(mel, wav)
     out = trainer.adversarial_train_step(mel, wav)
-    
+
     summary_manager.add_scalars('TrainLosses', out['loss'])
-    
+
     if generator.step % cm.config['train_images_plotting_frequency'] == 0:
+        summary_manager.display_mel(tag='InputMelMelGAN', mel=mel[0])
         summary_manager.display_plot(tag='TrainPredWav', plot=out['pred_wav'][0])
         summary_manager.display_plot(tag='TrainTargetWav', plot=wav[0])
-    
+        wav_from_mel = summary_manager.audio.reconstruct_waveform(mel[0])
+        summary_manager.display_plot(tag='TrainWavFromMel', plot=wav_from_mel)
+
     if (generator.step % cm.config['audio_prediction_frequency'] == 0) or (generator.step == 1):
         summary_manager.add_audio('PredWav', out['pred_wav'], cm.config['sampling_rate'])
         # vmel, vwav = valid_dataset.next_batch()
         vout = generator.forward(test_batch[0])
         summary_manager.add_audio('ValidWav', vout, cm.config['sampling_rate'])
         summary_manager.add_audio('TargetWav', wav, cm.config['sampling_rate'])
-    
     if generator.step % cm.config['weights_save_frequency'] == 0:
         save_path = manager.save()
         t.display(f'checkpoint at step {generator.step}: {save_path}', pos=len(cm.config['n_steps_avg_losses']) + 2)

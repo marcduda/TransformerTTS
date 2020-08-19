@@ -27,9 +27,9 @@ class MetadataReader:
     
     def _build_file_list(self):
         wav_list, text_list = self.metadata_reading_function(self.metadata_path)
-        file_list = [x.with_suffix('').name for x in self.wav_directory.iterdir() if x.suffix == '.wav']
-        for metadata_item in wav_list:
-            assert metadata_item in file_list, f'Missing file: metadata item {metadata_item}, was not found in {self.wav_directory}.'
+        # file_list = [x.with_suffix('').name for x in self.wav_directory.iterdir() if x.suffix == '.wav']
+        # for metadata_item in wav_list:
+        #     assert metadata_item in file_list, f'Missing file: metadata item {metadata_item}, was not found in {self.wav_directory}.'
         return list(zip(wav_list, text_list))
     
     def _default_metadata_reader(self, metadata_path, column_sep='|'):
@@ -160,7 +160,7 @@ class TextMelDurDataset:
         text = sample[1]
         mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
         durations = np.load(
-            (self.metadata_reader.data_directory / 'forward_data' / sample_name).with_suffix('.npy').as_posix())
+            (self.metadata_reader.data_directory / 'durations' / sample_name).with_suffix('.npy').as_posix())
         return mel, text, durations, sample_name
     
     def _process_sample(self, sample):
@@ -235,17 +235,10 @@ class MelWavDataset:
         self.hop_len = self.audio.config['hop_length']
         self.mel_directory = Path(mel_directory)
     
-    def read_wav(self, wav_path: str):
-        y, sr = self.audio.load_wav(wav_path)
-        y = tf.squeeze(y)
-        return y
-    
-    def wav_to_mel(self, wav):
-        return self.audio.mel_spectrogram(wav)
-    
     def _read_sample(self, sample):
         sample_name = sample[0]
-        y = self.read_wav((self.metadata_reader.wav_directory / sample_name).with_suffix('.wav').as_posix())
+        y = np.load(
+            (self.metadata_reader.data_directory / 'resampled_wavs' / sample_name).with_suffix('.npy').as_posix())
         mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
         if self.max_wav_len is not None:
             y_len = tf.shape(y)[0]
@@ -277,7 +270,10 @@ class MelWavDataset:
                                 metadata_reading_function=None,
                                 max_wav_len: int = None):
         if mel_directory is None:
-            mel_directory = config.train_datadir / 'mels'
+            if config.config['use_GT'] is True:
+                mel_directory = config.train_datadir / 'mels'
+            else:
+                mel_directory = config.train_datadir / 'forward_mels'
         audio = Audio(config.config)
         if max_wav_len is None:
             max_wav_len = config.config['max_wav_segment_lenght']
@@ -299,7 +295,10 @@ class MelWavDataset:
                                      max_wav_len: int = None,
                                      mel_directory: str = None):
         if mel_directory is None:
-            mel_directory = config.train_datadir / 'mels'
+            if config.config['use_GT'] is True:
+                mel_directory = config.train_datadir / 'mels'
+            else:
+                mel_directory = config.train_datadir / 'forward_mels'
         audio = Audio(config.config)
         if max_wav_len is None:
             max_wav_len = config.config['max_wav_segment_lenght']
@@ -321,7 +320,11 @@ class MelWavDataset:
                                        max_wav_len: int = None,
                                        mel_directory: str = None):
         if mel_directory is None:
-            mel_directory = config.train_datadir / 'mels'
+            if config.config['use_GT'] is True:
+                mel_directory = config.train_datadir / 'mels'
+            else:
+                mel_directory = config.train_datadir / 'forward_mels'
+        
         audio = Audio(config.config)
         if max_wav_len is None:
             max_wav_len = config.config['max_wav_segment_lenght']

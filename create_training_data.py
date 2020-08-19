@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, required=True)
 parser.add_argument('--skip_phonemes', action='store_true')
 parser.add_argument('--skip_mels', action='store_true')
+parser.add_argument('--skip_wavs', action='store_true')
 parser.add_argument('--phonemizer_parallel_jobs', type=int, default=16)
 parser.add_argument('--phonemizer_batch_size', type=int, default=16)
 
@@ -93,16 +94,21 @@ if not args.skip_phonemes:
     with open(test_metadata_path, 'w+', encoding='utf-8') as file:
         file.writelines(test_metadata)
 
-if not args.skip_mels:
-    using = cm.config['use_librosa'] * 'Librosa' + (not cm.config['use_librosa']) * 'TF'
-    print(f"\n{using} mels will be stored under {cm.train_datadir / 'mels'}")
-    print('\nCOMPUTING MELS\n')
+if (not args.skip_mels) or (not args.skip_wavs):
+    print(f"\nMels and resampled wavs will be respectibvely stored under")
+    print(f"{cm.train_datadir / 'mels'} and {cm.train_datadir / 'resampled_wavs'}")
+    print(f'{not args.skip_wavs * "RESAMPLING WAVS"} {not args.skip_mels * "COMPUTING MELS"} ')
+    (cm.train_datadir / 'resampled_wavs').mkdir(exist_ok=True)
+    (cm.train_datadir / 'mels').mkdir(exist_ok=True)
     audio = Audio(config=cm.config)
     for i in tqdm.tqdm(range(len(filenames))):
         wav_path = (metadatareader.wav_directory / filenames[i]).with_suffix('.wav')
-        y, sr = audio.load_wav(wav_path)
-        mel = audio.mel_spectrogram(y)
-        mel_path = (cm.train_datadir / 'mels' / filenames[i]).with_suffix('.npy')
-        np.save(mel_path, mel)
-
+        y, sr = audio.load_wav(str(wav_path))
+        if not args.skip_mels:
+            mel = audio.mel_spectrogram(y)
+            mel_path = (cm.train_datadir / 'mels' / filenames[i]).with_suffix('.npy')
+            np.save(mel_path, mel)
+        if not args.skip_wavs:
+            wav_path = (cm.train_datadir / 'resampled_wavs' / filenames[i]).with_suffix('.npy')
+            np.save(wav_path, y)
 print('\nDone')

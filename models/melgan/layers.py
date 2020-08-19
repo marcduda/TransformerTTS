@@ -13,7 +13,7 @@ class ReplicationPadding(tf.keras.layers.Layer):
 
 class PaddedWNConv1D(tf.keras.layers.Layer):
     def __init__(self, channels: int, kernel_size: int, dilation=1, padding: int = None, strides=1,
-                 groups=1, weight_norm=True, **kwargs):
+                 groups=1, **kwargs):
         super(PaddedWNConv1D, self).__init__(**kwargs)
         assert kernel_size % 2 == 1, 'Kernel size must be odd.'
         if padding is None:
@@ -24,15 +24,10 @@ class PaddedWNConv1D(tf.keras.layers.Layer):
         self.layers = []
         if padding > 0:
             self.layers += [ReplicationPadding(pad_size=padding)]
-        if weight_norm:
-            self.layers += [
-                tfa.layers.WeightNormalization(
-                    tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
-                                           groups=groups))]
-        else:
-            self.layers += [
+        self.layers += [
+            tfa.layers.WeightNormalization(
                 tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
-                                       groups=groups)]
+                                       groups=groups))]
         # if groups ==1: # TF ADDONS not compatible with tf2.3 (groups are only in 2.3)
         #     self.layers += [tfa.layers.WeightNormalization(
         #          tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation, groups=groups))]

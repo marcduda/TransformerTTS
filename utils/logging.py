@@ -99,12 +99,12 @@ class SummaryManager:
                 self.add_image(str(batch_plot_path), tf.expand_dims(tf.expand_dims(image, 0), -1))
     
     @ignore_exception
-    def display_mel(self, mel, tag=''):
+    def display_mel(self, mel, tag='', step=None):
         img = tf.transpose(mel)
         figure = self.audio.display_mel(img, is_normal=True)
         buf = buffer_image(figure)
         img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
-        self.add_image(tag, tf.expand_dims(img_tf, 0))
+        self.add_image(tag, tf.expand_dims(img_tf, 0), step=step)
     
     @ignore_exception
     def display_plot(self, plot, tag=''):

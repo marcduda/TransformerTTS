@@ -12,19 +12,17 @@ from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 
 class Config:
     
-    def __init__(self, config_path: str, model_kind: str, session_name: str = None):
-        # if model_kind not in ['autoregressive', 'forward']:
-        #     raise TypeError(f"model_kind must be in {['autoregressive', 'forward']}")
+    def __init__(self, config_path: str, model_kind: str):
+        if model_kind not in ['autoregressive', 'forward', 'melgan']:
+            raise TypeError(f"model_kind must be in {['autoregressive', 'forward', 'melgan']}")
         self.config_path = Path(config_path)
         self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()
         self.config, self.data_config, self.model_config = self._load_config()
         self.git_hash = self._get_git_hash()
-        if session_name is None:
-            session_name = self.config['session_name']
+        session_name = self.config[f'{model_kind}_session_name']
+        # self.session_name = f'{self.config_path.name}_{session_name}'
         self.session_name = session_name
-        self.complete_session_name = '_'.join(filter(None, [self.config_path.name, session_name]))
-        self.complete_session_name = session_name
         self.data_dir = Path(self.config['data_directory'])
         self.metadata_path = self.data_dir / self.config['metadata_filename']
         self.wav_dir = self.data_dir / self.config['wav_subdir_name']
@@ -63,7 +61,7 @@ class Config:
             print(f'WARNING: could not check git hash. {e}')
     
     def _make_folder_paths(self):
-        base_dir = Path(self.config['log_directory']) / self.complete_session_name
+        base_dir = Path(self.config['log_directory']) / self.session_name
         log_dir = base_dir / f'{self.model_kind}_logs'
         weights_dir = base_dir / f'{self.model_kind}_weights'
         train_datadir = self.config['train_data_directory']
@@ -92,9 +90,9 @@ class Config:
     def update_config(self):
         self.config['git_hash'] = self.git_hash
         self.model_config['git_hash'] = self.git_hash
-        self.data_config['session_name'] = self.session_name
-        self.model_config['session_name'] = self.session_name
-        self.config['session_name'] = self.session_name
+        self.data_config[f'{self.model_kind}_session_name'] = self.session_name
+        self.model_config[f'{self.model_kind}_session_name'] = self.session_name
+        self.config[f'{self.model_kind}_session_name'] = self.session_name
     
     def get_model(self, ignore_hash=False):
         if not ignore_hash:
