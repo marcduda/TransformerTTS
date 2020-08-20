@@ -82,12 +82,14 @@ class SummaryManager:
         with self.writers[self.default_writer].as_default():
             tf.summary.histogram(name=tag, data=values, step=self.global_step, buckets=buckets)
     
-    def add_audio(self, tag, wav, sr):
+    def add_audio(self, tag, wav, sr, step=None):
+        if step is None:
+            step = self.global_step
         with self.writers[self.default_writer].as_default():
             tf.summary.audio(name=tag,
                              data=wav,
                              sample_rate=sr,
-                             step=self.global_step)
+                             step=step)
     
     @ignore_exception
     def display_attention_heads(self, outputs, tag=''):
@@ -125,9 +127,9 @@ class SummaryManager:
         self.add_scalar(tag=tag, scalar_value=scalar_value)
     
     @ignore_exception
-    def display_audio(self, tag, mel):
+    def display_audio(self, tag, mel, step=None):
         wav = tf.transpose(mel)
         wav = self.audio.reconstruct_waveform(wav)
         wav = tf.expand_dims(wav, 0)
         wav = tf.expand_dims(wav, -1)
-        self.add_audio(tag, wav.numpy(), sr=self.config['sampling_rate'])
+        self.add_audio(tag, wav.numpy(), sr=self.config['sampling_rate'], step=step)

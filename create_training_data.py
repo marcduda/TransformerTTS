@@ -97,7 +97,7 @@ if not args.skip_phonemes:
 if (not args.skip_mels) or (not args.skip_wavs):
     print(f"\nMels and resampled wavs will be respectibvely stored under")
     print(f"{cm.train_datadir / 'mels'} and {cm.train_datadir / 'resampled_wavs'}")
-    print(f'{not args.skip_wavs * "RESAMPLING WAVS"} {not args.skip_mels * "COMPUTING MELS"} ')
+    print(f'RESAMPLING WAVS and COMPUTING MELS')
     (cm.train_datadir / 'resampled_wavs').mkdir(exist_ok=True)
     (cm.train_datadir / 'mels').mkdir(exist_ok=True)
     audio = Audio(config=cm.config)
@@ -106,9 +106,14 @@ if (not args.skip_mels) or (not args.skip_wavs):
         y, sr = audio.load_wav(str(wav_path))
         if not args.skip_mels:
             mel = audio.mel_spectrogram(y)
+            assert mel.shape[1] == audio.config['mel_channels']
             mel_path = (cm.train_datadir / 'mels' / filenames[i]).with_suffix('.npy')
             np.save(mel_path, mel)
-        if not args.skip_wavs:
+            # TODO: switch to padding = -1 (or wav pad value)
+            y = np.pad(y, (0, cm.config['n_fft']), constant_values=cm.config['wav_padding_value'])
+            # y = np.pad(y, (0, cm.config['n_fft']), mode='edge')
+            y = y [:mel.shape[0]*audio.config['hop_length']]
+            assert len(y) == mel.shape[0]*audio.config['hop_length']
             wav_path = (cm.train_datadir / 'resampled_wavs' / filenames[i]).with_suffix('.npy')
             np.save(wav_path, y)
 print('\nDone')

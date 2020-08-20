@@ -20,7 +20,6 @@ dynamic_memory_allocation()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--session_name', dest='session_name', default=None)
 parser.add_argument('--recompute_pred', dest='recompute_pred', action='store_true',
                     help='Recompute the model predictions.')
 parser.add_argument('--best', dest='best', action='store_true',
@@ -35,6 +34,7 @@ parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_tru
                     help='Fill zero durations with ones. Reduces next non-zero phoneme duration in sequence to compensate.')
 parser.add_argument('--use_GT', action='store_true',
                     help='Use ground truth mel instead of predicted mel to train forward model.')
+parser.add_argument('--autoregressive_weights', type=str, default='', help='Explicit path to autoregressive model weights.')
 args = parser.parse_args()
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best
@@ -50,9 +50,13 @@ tag_description = ''.join(
      f'{"_fix_jumps" * fix_jumps}'])
 writer_tag = f'DurationExtraction{tag_description}'
 print(writer_tag)
-config_manager = Config(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
+config_manager = Config(config_path=args.config, model_kind='autoregressive')
 config = config_manager.config
-model = config_manager.load_model()
+config_manager.print_config()
+if args.forward_weights != '':
+    model = config_manager.load_model(args.autoregressive_weights)
+else:
+    model = config_manager.load_model()
 if model.r != 1:
     print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
 

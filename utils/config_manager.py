@@ -21,8 +21,8 @@ class Config:
         self.config, self.data_config, self.model_config = self._load_config()
         self.git_hash = self._get_git_hash()
         session_name = self.config[f'{model_kind}_session_name']
-        # self.session_name = f'{self.config_path.name}_{session_name}'
-        self.session_name = session_name
+        self.session_name = f'{self.config_path.name}_{session_name}'
+        # self.session_name = session_name
         self.data_dir = Path(self.config['data_directory'])
         self.metadata_path = self.data_dir / self.config['metadata_filename']
         self.wav_dir = self.data_dir / self.config['wav_subdir_name']

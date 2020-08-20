@@ -41,6 +41,7 @@ class GANTrainer(tf.keras.models.Model):
             pred_wav = self.generator.forward(mel)
             pred_label, pred_features = self.discriminator.forward(pred_wav)
             
+            # TODO: mask features
             # compute losses
             feature_loss = 0.0
             adversarial_loss_for_generator = 0.0
