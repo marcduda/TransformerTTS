@@ -2,7 +2,7 @@ from tqdm import trange
 import tensorflow as tf
 import numpy as np
 
-from preprocessing.datasets.audio_dataset import MelWavDataset, MelGANPreprocessor
+from preprocessing.datasets import MelWavDataset, MelGANPreprocessor
 from models.melgan.trainer import GANTrainer
 from models.melgan.models import Generator, MultiScaleDiscriminator
 from utils.config_manager import Config
@@ -57,7 +57,6 @@ t = trange(generator.step, cm.config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {generator.step}')
     mel, wav, filename = train_dataset.next_batch()
-    # out = trainer.mse_train_step(mel, wav)
     out = trainer.adversarial_train_step(mel, wav)
     
     summary_manager.add_scalars('TrainLosses', out['loss'])

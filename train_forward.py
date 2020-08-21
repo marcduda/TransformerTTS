@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_manager import Config
-from preprocessing.data_handling import Dataset, ForwardDataPrepper
+from preprocessing.datasets import TextMelDurDataset, ForwardPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
@@ -16,15 +16,6 @@ from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 np.random.seed(42)
 tf.random.set_seed(42)
 dynamic_memory_allocation()
-
-
-def build_file_list(data_dir: Path):
-    sample_paths = []
-    for item in data_dir.iterdir():
-        if item.suffix == '.npy':
-            sample_paths.append(str(item))
-    return sample_paths
-
 
 @ignore_exception
 @time_it
@@ -52,7 +43,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config_manager = Config(config_path=args.config, model_kind='forward', session_name=args.session_name)
+config_manager = Config(config_path=args.config, model_kind='forward')
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
@@ -60,23 +51,16 @@ config_manager.create_remove_dirs(clear_dir=args.clear_dir,
 config_manager.dump_config()
 config_manager.print_config()
 
-train_data_list = build_file_list(config_manager.train_datadir / 'forward_data/train')
-dataprep = ForwardDataPrepper()
-train_dataset = Dataset(samples=train_data_list,
-                        mel_channels=config['mel_channels'],
-                        preprocessor=dataprep,
-                        batch_size=config['batch_size'],
-                        shuffle=True)
-val_data_list = build_file_list(config_manager.train_datadir / 'forward_data/val')
-val_dataset = Dataset(samples=val_data_list,
-                      mel_channels=config['mel_channels'],
-                      preprocessor=dataprep,
-                      batch_size=config['batch_size'],
-                      shuffle=False)
-
-# get model, prepare data for model, create datasets
 model = config_manager.get_model()
 config_manager.compile_model(model)
+
+data_prep = ForwardPreprocessor(config=config, tokenizer=model.text_pipeline.tokenizer)
+train_data_handler = TextMelDurDataset.default_training_from_config(config_manager,
+                                                                 preprocessor=data_prep)
+valid_data_handler = TextMelDurDataset.default_validation_from_config(config_manager,
+                                                                   preprocessor=data_prep)
+train_dataset = train_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir, config=config)
@@ -97,7 +81,7 @@ if config['debug'] is True:
 # main event
 print('\nTRAINING')
 losses = []
-test_batch = val_dataset.next_batch()
+test_batch = valid_dataset.next_batch()
 t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
@@ -136,7 +120,7 @@ for _ in t:
     if model.step % config['validation_frequency'] == 0:
         t.display(f'Validating', pos=len(config['n_steps_avg_losses']) + 3)
         val_loss, time_taken = validate(model=model,
-                                        val_dataset=val_dataset,
+                                        val_dataset=valid_dataset,
                                         summary_manager=summary_manager)
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)

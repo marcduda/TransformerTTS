@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from utils.config_manager import Config
 from utils.logging import SummaryManager
-from preprocessing.datasets.audio_dataset import TextMelDurDataset, ForwardPreprocessor
+from preprocessing.datasets import TextMelDurDataset, ForwardPreprocessor
 from models.transformer.transformer_utils import create_mel_padding_mask
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 
@@ -24,8 +24,8 @@ config_manager.print_config()
 if args.forward_weights != '':
     model = config_manager.load_model(args.forward_weights)
 else:
-    model = config_manager.get_model()
-config_manager.compile_model(model)
+    model = config_manager.load_model()
+# config_manager.compile_model(model)
 preproc = ForwardPreprocessor(config_manager.config, tokenizer=model.text_pipeline.tokenizer)
 data_handler = TextMelDurDataset.default_all_from_config(config_manager, preprocessor=preproc)
 
@@ -36,18 +36,18 @@ script_batch_size = config_manager.config['batch_size']
 dataset = data_handler.get_dataset(script_batch_size, shuffle=False, drop_remainder=False)
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir, config=config_manager.config,
                                  default_writer='ForwardMels')
-checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
-                                 optimizer=model.optimizer,
-                                 net=model)
-manager = tf.train.CheckpointManager(checkpoint, config_manager.weights_dir,
-                                     max_to_keep=config_manager.config['keep_n_weights'],
-                                     keep_checkpoint_every_n_hours=config_manager.config['keep_checkpoint_every_n_hours'])
-if args.forward_weights == '':
-    checkpoint.restore(manager.latest_checkpoint)
-    if manager.latest_checkpoint:
-        print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
-    else:
-        print(f'\nCould NOT load weights. Check config.')
+# checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
+#                                  optimizer=model.optimizer,
+#                                  net=model)
+# manager = tf.train.CheckpointManager(checkpoint, config_manager.weights_dir,
+#                                      max_to_keep=config_manager.config['keep_n_weights'],
+#                                      keep_checkpoint_every_n_hours=config_manager.config['keep_checkpoint_every_n_hours'])
+# if args.forward_weights == '':
+#     checkpoint.restore(manager.latest_checkpoint)
+#     if manager.latest_checkpoint:
+#         print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
+#     else:
+#         print(f'\nCould NOT load weights. Check config.')
 
 if config_manager.config['debug'] is True:
     print('\nWARNING: DEBUG is set to True. Training in eager mode.')

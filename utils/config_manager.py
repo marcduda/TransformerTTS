@@ -20,9 +20,7 @@ class Config:
         self.yaml = ruamel.yaml.YAML()
         self.config, self.data_config, self.model_config = self._load_config()
         self.git_hash = self._get_git_hash()
-        session_name = self.config[f'{model_kind}_session_name']
-        self.session_name = f'{self.config_path.name}_{session_name}'
-        # self.session_name = session_name
+        self.session_name = self.config[f'{model_kind}_session_name']
         self.data_dir = Path(self.config['data_directory'])
         self.metadata_path = self.data_dir / self.config['metadata_filename']
         self.wav_dir = self.data_dir / self.config['wav_subdir_name']
@@ -61,7 +59,7 @@ class Config:
             print(f'WARNING: could not check git hash. {e}')
     
     def _make_folder_paths(self):
-        base_dir = Path(self.config['log_directory']) / self.session_name
+        base_dir = self.config['log_directory'] / self.config['config_name'] / self.session_name
         log_dir = base_dir / f'{self.model_kind}_logs'
         weights_dir = base_dir / f'{self.model_kind}_weights'
         train_datadir = self.config['train_data_directory']
@@ -183,7 +181,7 @@ class Config:
     
     def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
         self.train_datadir.mkdir(exist_ok=True)
-        self.base_dir.mkdir(exist_ok=True)
+        self.base_dir.mkdir(exist_ok=True, parents=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')
             if delete == 'y':
@@ -217,9 +215,11 @@ class Config:
             ckpt.restore(manager.latest_checkpoint)
             if verbose:
                 print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')
-        decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_prenet_dropout_schedule'])
-        reduction_factor = None
-        if self.model_kind == 'autoregressive':
-            reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
-        model.set_constants(reduction_factor=reduction_factor, decoder_prenet_dropout=decoder_prenet_dropout)
+        
+        if (self.model_kind == 'forward') or (self.model_kind == 'autoregressive'):
+            decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_prenet_dropout_schedule'])
+            reduction_factor = None
+            if self.model_kind == 'autoregressive':
+                reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
+            model.set_constants(reduction_factor=reduction_factor, decoder_prenet_dropout=decoder_prenet_dropout)
         return model

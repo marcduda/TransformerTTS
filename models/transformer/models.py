@@ -2,10 +2,12 @@ import sys
 
 import tensorflow as tf
 
-from models.transformer.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
+from models.transformer.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, \
+    create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.text import Pipeline
-from models.transformer.layers import DecoderPrenet, Postnet, DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, \
+from models.transformer.layers import DecoderPrenet, Postnet, DurationPredictor, Expand, SelfAttentionBlocks, \
+    CrossAttentionBlocks, \
     CNNResNorm
 
 

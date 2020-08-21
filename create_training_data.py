@@ -5,7 +5,7 @@ import numpy as np
 import tqdm
 
 from preprocessing.text import Pipeline
-from preprocessing.datasets.audio_dataset import MetadataReader
+from preprocessing.datasets import MetadataReader
 from utils.config_manager import Config
 from utils.audio import Audio
 

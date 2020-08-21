@@ -27,9 +27,9 @@ class MetadataReader:
     
     def _build_file_list(self):
         wav_list, text_list = self.metadata_reading_function(self.metadata_path)
-        # file_list = [x.with_suffix('').name for x in self.wav_directory.iterdir() if x.suffix == '.wav']
-        # for metadata_item in wav_list:
-        #     assert metadata_item in file_list, f'Missing file: metadata item {metadata_item}, was not found in {self.wav_directory}.'
+        file_list = [x.with_suffix('').name for x in self.wav_directory.iterdir() if x.suffix == '.wav']
+        for metadata_item in wav_list:
+            assert metadata_item in file_list, f'Missing file: metadata item {metadata_item}, was not found in {self.wav_directory}.'
         return list(zip(wav_list, text_list))
     
     def _default_metadata_reader(self, metadata_path, column_sep='|'):

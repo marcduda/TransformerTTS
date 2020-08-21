@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_manager import Config
-from preprocessing.datasets.audio_dataset import TextMelDataset, AutoregressivePreprocessor
+from preprocessing.datasets import TextMelDataset, AutoregressivePreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager

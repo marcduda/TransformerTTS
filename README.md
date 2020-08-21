@@ -40,6 +40,7 @@ Try it out on Colab:
 | Autoregressive + WaveRNN | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_autoregressive_wavernn.ipynb) |
 
 ## Updates
+- 20/08/20: Added own MelGAN vocoder model and training code.
 - 4/06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
 
 ## 📖 Contents
@@ -95,8 +96,9 @@ Change the ```--config``` argument based on the configuration of your choice.
 ### Train Autoregressive Model
 #### Create training dataset
 ```bash
-python create_dataset.py --config config/melgan
+python create_training_data.py --config config/melgan
 ```
+This will add the `mels` and `resampled_wavs` folders to your `train_data_dir`.
 #### Training
 ```bash
 python train_autoregressive.py --config config/melgan
@@ -107,14 +109,26 @@ First use the autoregressive model to create the durations dataset
 ```bash
 python extract_durations.py --config config/melgan --binary --fix_jumps --fill_mode_next
 ```
-this will add an additional folder to the dataset folder containing the new datasets for validation and training of the forward model.<br>
+this will add the `durations` folder to your `train_data_dir`.
+This folder containing the new datasets for validation and training of the forward model.<br>
 If the rhythm of the trained model is off, play around with the flags of this script to fix the durations.
 #### Training
 ```bash
-python train_forward.py --config /path/to/config_folder/
+python train_forward.py --config config/melgan
 ```
+### Train MelGAN vocoder
+#### Dataset
+You can either train using ground truth mel spectrograms or the prediction of the forward model. To train with GT mel simply 
+set `use_GT: True` in `melgan_config.yaml`.
+
+To train on the forward model prediction, after training the forward model run
+```bash
+python create_forward_dataset --config config/melgan
+```
+This will add the `forward_mels` folder to your `train_data_dir`.
+
 #### Training & Model configuration
-- Training and model settings can be configured in `model_config.yaml`
+- Training and model settings can be configured in `<model>_config.yaml`
 
 #### Resume or restart training
 - To resume training simply use the same configuration files AND `--session_name` flag, if any
@@ -134,7 +148,7 @@ Predict with either the Forward or Autoregressive model
 from utils.config_manager import Config
 from utils.audio import Audio
 
-config_loader = ConfigManager('/path/to/config/', model_kind='forward')
+config_loader = Config(config_path=f'/path/to/config/', model_kind=f'forward')
 audio = Audio(config_loader.config)
 model = config_loader.load_model()
 out = model.predict('Please, say something.')

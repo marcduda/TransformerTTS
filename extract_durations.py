@@ -6,11 +6,11 @@ from tqdm import tqdm
 
 from utils.config_manager import Config
 from utils.logging import SummaryManager
-from preprocessing.datasets.audio_dataset import AutoregressivePreprocessor
+from preprocessing.datasets import AutoregressivePreprocessor
 from models.transformer.transformer_utils import create_mel_padding_mask
 from utils.alignments import get_durations_from_alignment
 from utils.scripts_utils import dynamic_memory_allocation
-from preprocessing.datasets.audio_dataset import TextMelDataset
+from preprocessing.datasets import TextMelDataset
 
 np.random.seed(42)
 tf.random.set_seed(42)
