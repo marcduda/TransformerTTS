@@ -126,12 +126,16 @@ To train on the forward model prediction, after training the forward model run
 python create_forward_dataset --config config/melgan
 ```
 This will add the `forward_mels` folder to your `train_data_dir`.
-
+#### Training
+```bash
+python train_melgan.py --config config/melgan
+```
+### Additional
 #### Training & Model configuration
 - Training and model settings can be configured in `<model>_config.yaml`
 
 #### Resume or restart training
-- To resume training simply use the same configuration files AND `--session_name` flag, if any
+- To resume training simply use the same configuration files
 - To restart training, delete the weights and/or the logs from the logs folder with the training flag `--reset_dir` (both) or `--reset_logs`, `--reset_weights`
 
 #### Monitor training
