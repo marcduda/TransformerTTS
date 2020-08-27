@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utils.losses import masked_mean_absolute_error, masked_onehot_crossentropy_melgan
+from utils.losses import masked_mean_absolute_error
 
 
 # class must be child of keras model for autograph to run.
@@ -25,7 +25,8 @@ class GANTrainer(tf.keras.models.Model):
             return tf.function(input_signature=signature)(function)
     
     def _adversarial_train_step(self, mel, wav):
-        # wav_mask = tf.math.logical_not(tf.math.equal(wav, self.discriminator.mask_value)) # only needed for mse
+        # wav_mask = tf.math.logical_not(tf.math.equal(wav, self.discriminator.mask_value))  # only needed for mse
+        # wav_mask = tf.cast(wav_mask, tf.float32)
         with tf.GradientTape() as dtape:
             discriminator_loss_true = 0.0
             true_label, true_features = self.discriminator.forward(wav)
@@ -80,7 +81,7 @@ class GANTrainer(tf.keras.models.Model):
                 }}
     
     def _mse_train_step(self, mel, wav):
-        wav_mask = tf.math.logical_not(tf.math.equal(wav, self.discriminator.mask_value)) # only needed for mse
+        wav_mask = tf.math.logical_not(tf.math.equal(wav, self.discriminator.mask_value))  # only needed for mse
         with tf.GradientTape() as tape:
             pred_wav = self.generator.forward(mel)
             generator_mse_loss = masked_mean_absolute_error(wav, pred_wav, mask=wav_mask)
@@ -91,20 +92,17 @@ class GANTrainer(tf.keras.models.Model):
                     'generator_mse_loss': generator_mse_loss}}
     
     def _discriminator_true_label_loss(self, predicted_labels):
-        label_shape = tf.shape(predicted_labels[:, :, 0]) # remove one-hot dimension from pred
-        true_label = tf.one_hot(tf.ones(label_shape, dtype=tf.int32), 2)
-        mask = tf.logical_not(tf.reduce_sum(predicted_labels, axis=-1) == 0)
-        mask = tf.cast(mask, dtype=tf.int32)
-        loss = masked_onehot_crossentropy_melgan(true_label, predicted_labels, mask=mask, smoothing=0.1)
-        return loss
+        # TODO check masking
+        mask = tf.math.logical_not(tf.math.equal(predicted_labels, 0.))  # only needed for mse
+        mask = tf.cast(mask, tf.float32)
+        loss = tf.keras.activations.relu(1 + predicted_labels) * mask
+        return tf.math.reduce_mean(loss)
     
     def _discriminator_fake_label_loss(self, predicted_labels):
-        label_shape = tf.shape(predicted_labels[:, :, 0]) # remove one-hot dimension from pred
-        fake_label = tf.one_hot(tf.zeros(label_shape, dtype=tf.int32), 2)
-        mask = tf.logical_not(tf.reduce_sum(predicted_labels, axis=-1) == 0)
-        mask = tf.cast(mask, dtype=tf.int32)
-        loss = masked_onehot_crossentropy_melgan(targets=fake_label, logits=predicted_labels, smoothing=0.1, mask=mask)
-        return loss
+        mask = tf.math.logical_not(tf.math.equal(predicted_labels, 0.))  # only needed for mse
+        mask = tf.cast(mask, tf.float32)
+        loss = tf.keras.activations.relu(1 - predicted_labels) * mask
+        return tf.math.reduce_mean(loss)
     
     def _feature_loss(self, true_feature, pred_feature):
         mask = tf.logical_not(tf.reduce_sum(pred_feature, axis=-1) == 0)

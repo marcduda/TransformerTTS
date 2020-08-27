@@ -28,20 +28,6 @@ def masked_crossentropy(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
     loss = crossentropy(targets, logits, sample_weight=mask)
     return loss
 
-def masked_crossentropy_melgan(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
-    crossentropy = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, label_smoothing=0.1)
-    mask = tf.math.logical_not(tf.math.equal(logits, 0)) # Note: it's from logits because melgan discriminator has a masking layer that brings outputs to zeros. We use labels as -1 and 1
-    # TODO: but no automatic label smoothing is possible, needs to be done by hand (-1+eps and 1-eps) -> Categorical (not sparse) can label smooth
-    # TODO: convert to one-hot is solution here
-    mask = tf.cast(mask, dtype=tf.int32)
-    loss = crossentropy(targets, logits, sample_weight=mask)
-    return loss
-    
-def masked_onehot_crossentropy_melgan(targets: tf.Tensor, logits: tf.Tensor, mask:tf.Tensor, smoothing=0.1) -> tf.Tensor:
-    """ Mask is calculated on masked output. Need masking layer. """
-    crossentropy = tf.keras.losses.CategoricalCrossentropy(from_logits=True, label_smoothing=smoothing)
-    loss = crossentropy(targets, logits, sample_weight=mask)
-    return loss
 
 def masked_mean_squared_error(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
     mse = tf.keras.losses.MeanSquaredError()
@@ -52,7 +38,8 @@ def masked_mean_squared_error(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tenso
     return loss
 
 
-def masked_mean_absolute_error(targets: tf.Tensor, logits: tf.Tensor, mask_value=0, mask:tf.Tensor=None) -> tf.Tensor:
+def masked_mean_absolute_error(targets: tf.Tensor, logits: tf.Tensor, mask_value=0,
+                               mask: tf.Tensor = None) -> tf.Tensor:
     mae = tf.keras.losses.MeanAbsoluteError()
     if mask is not None:
         mask = tf.math.logical_not(tf.math.equal(targets, mask_value))
@@ -64,7 +51,8 @@ def masked_mean_absolute_error(targets: tf.Tensor, logits: tf.Tensor, mask_value
 
 def masked_binary_crossentropy(targets: tf.Tensor, logits: tf.Tensor, mask_value=0) -> tf.Tensor:
     bc = tf.keras.losses.BinaryCrossentropy(reduction='none')
-    mask = tf.math.logical_not(tf.math.equal(logits, mask_value)) # TODO: masking based on the logits requires a masking layer. But masking layer produces 0. as outputs.
+    mask = tf.math.logical_not(tf.math.equal(logits,
+                                             mask_value))  # TODO: masking based on the logits requires a masking layer. But masking layer produces 0. as outputs.
     # Need explicit masking
     mask = tf.cast(mask, dtype=tf.int32)
     loss_ = bc(targets, logits)

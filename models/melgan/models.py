@@ -4,7 +4,7 @@ from models.melgan.layers import PaddedWNConv1D, Upscale1D, ResidualStack, Discr
 
 
 class Generator(tf.keras.models.Model):
-    def __init__(self, mel_channels: int, n_layers=(4, 4, 4, 4), leaky_alpha=.2, debug=False, **kwargs):
+    def __init__(self, mel_channels: int, n_layers=(4, 5, 6, 7), leaky_alpha=.2, debug=False, **kwargs):
         super(Generator, self).__init__(**kwargs)
         self.model_layers = []
         self.model_layers += [PaddedWNConv1D(channels=512, kernel_size=7, dilation=1)]
@@ -52,6 +52,7 @@ class MultiScaleDiscriminator(tf.keras.models.Model):
     def __init__(self, debug=False, mask_value=-1., **kwargs):
         super(MultiScaleDiscriminator, self).__init__(**kwargs)
         # TODO: changed same padding from valid, check
+        self.mask_value = mask_value
         self.masking = tf.keras.layers.Masking(mask_value=mask_value)
         self.pooling1 = tf.keras.layers.AvgPool1D(pool_size=4, strides=2, padding='same')
         self.pooling2 = tf.keras.layers.AvgPool1D(pool_size=4, strides=2, padding='same')

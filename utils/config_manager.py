@@ -59,7 +59,7 @@ class Config:
             print(f'WARNING: could not check git hash. {e}')
     
     def _make_folder_paths(self):
-        base_dir = self.config['log_directory'] / self.config['config_name'] / self.session_name
+        base_dir = Path(self.config['log_directory']) / self.config['config_name'] / self.session_name
         log_dir = base_dir / f'{self.model_kind}_logs'
         weights_dir = base_dir / f'{self.model_kind}_weights'
         train_datadir = self.config['train_data_directory']
