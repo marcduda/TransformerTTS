@@ -12,3 +12,9 @@ def norm_tensor(tensor):
             tf.math.reduce_min(tensor)
         )
     )
+
+
+def neg_one_one_norm(tensor, axis=1):
+    # Subtract the mean, and scale to the interval [-1,1]
+    tensor_minusmean = tensor - tf.math.reduce_mean(tensor, axis=axis)
+    return tensor_minusmean / tf.abs(tf.reduce_max(tensor_minusmean, axis=axis))

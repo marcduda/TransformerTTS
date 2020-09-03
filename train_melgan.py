@@ -27,7 +27,7 @@ cm.create_remove_dirs(clear_dir=args.clear_dir,
 cm.dump_config()
 cm.print_config()
 generator = Generator(cm.config['mel_channels'], debug=cm.config['debug'])
-discriminator = MultiScaleDiscriminator(debug=cm.config['debug'], )
+discriminator = MultiScaleDiscriminator(debug=cm.config['debug'], mask_value=cm.config['wav_padding_value'])
 # wav_mask_value=-1)  # TODO: define masking values in config
 cm.compile_model(generator)
 cm.compile_model(discriminator)

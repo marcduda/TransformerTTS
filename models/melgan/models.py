@@ -49,7 +49,7 @@ class Generator(tf.keras.models.Model):
 
 
 class MultiScaleDiscriminator(tf.keras.models.Model):
-    def __init__(self, debug=False, mask_value=-1., **kwargs):
+    def __init__(self, mask_value:float, debug=False, **kwargs):
         super(MultiScaleDiscriminator, self).__init__(**kwargs)
         # TODO: changed same padding from valid, check
         self.mask_value = mask_value

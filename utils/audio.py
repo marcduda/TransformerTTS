@@ -4,13 +4,14 @@ import librosa
 import numpy as np
 import librosa.display
 from matplotlib import pyplot as plt
-import tensorflow as tf
+from utils.vec_ops import neg_one_one_norm
 
 
 class Audio():
     def __init__(self, config: dict):
         self.config = config
         self.normalizer = getattr(sys.modules[__name__], config['normalizer'])()
+        self.wav_normalizer = WavNormalizer(mulaw=config['mu_law'])
     
     def _normalize(self, S):
         return self.normalizer.normalize(S)
@@ -39,30 +40,6 @@ class Audio():
         D = self._stft(wav)
         S = self._linear_to_mel(np.abs(D))
         return self._normalize(S).T
-    
-    # def _linear_to_mel_tf(self, S):
-    #     linear_to_mel_weight_matrix = tf.signal.linear_to_mel_weight_matrix(
-    #         num_mel_bins=self.config['mel_channels'],
-    #         num_spectrogram_bins=self.config['n_fft']//2 + 1,
-    #         sample_rate=self.config['sampling_rate'],
-    #         lower_edge_hertz=self.config['f_min'],
-    #         upper_edge_hertz=self.config['f_max'])
-    #     return  tf.tensordot(S, linear_to_mel_weight_matrix, 1)
-    
-    # def _stft_tf(self, y, **kwargs):
-    #     return tf.signal.stft(
-    #         y,
-    #         frame_length=self.config['win_length'],
-    #         frame_step=self.config['hop_length'],
-    #         fft_length=self.config['n_fft'],
-    #         window_fn=tf.signal.hann_window,
-    #         pad_end=True,
-    #         **kwargs)
-    
-    # def _mel_spectrogram_tf(self, wav):
-    #     D = self._stft_tf(wav)
-    #     S = self._linear_to_mel_tf(tf.abs(D))
-    #     return self._normalize(S)
     
     def reconstruct_waveform(self, mel, n_iter=32):
         """ Uses Griffin-Lim phase reconstruction to convert from a normalized
@@ -99,15 +76,6 @@ class Audio():
     def load_wav(self, wav_path):
         y, sr = librosa.load(wav_path, sr=self.config['sampling_rate'])
         return y, sr
-    
-    # def _load_wav_tf(self, wav_path):
-    #     file = tf.io.read_file(wav_path)
-    #
-    #     # TODO: missing resampling if sr is different than audio.config['sample_rate']
-    #     y, sr = tf.audio.decode_wav(file,
-    #                                 desired_channels=1,
-    #                                 desired_samples=-1)
-    #     return y, sr
 
 
 class Normalizer:
@@ -152,3 +120,24 @@ class WaveRNN(Normalizer):
     
     def db_to_amp(self, x):
         return np.power(10.0, x * 0.05)
+
+class WavNormalizer(Normalizer):
+    def __init__(self, mulaw: bool):
+        self.mulaw = mulaw
+        
+    def normalize(self, wav, axis=-1):
+        wav = neg_one_one_norm(wav, axis=axis)
+        if self.mulaw:
+            sign = np.sign(wav)
+            num = np.log(1 + 255.*np.abs(wav))
+            den = np.log(1+255.)
+            wav = sign*num/den
+        return wav
+    
+    def denormalize(self, wav):
+        if self.mulaw:
+            sign = np.sign(wav)
+            power = np.float_power(1+255., np.abs(wav))
+            scale = 1/255.
+            wav = sign*scale*(power - 1.)
+        return wav
