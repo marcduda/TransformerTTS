@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from models.melgan.layers import PaddedWNConv1D, Upscale1D, ResidualStack, DiscriminatorBlock
+from models.melgan.layers import PaddedWNConv1D, Upscale1D, ResidualStack, DiscriminatorBlock, TFConvTranspose1d
 
 
 class Generator(tf.keras.models.Model):
@@ -9,16 +9,20 @@ class Generator(tf.keras.models.Model):
         self.model_layers = []
         self.model_layers += [PaddedWNConv1D(channels=512, kernel_size=7, dilation=1)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [Upscale1D(output_channels=256, scale=8, kernel_size=17)]
+        # self.model_layers += [Upscale1D(output_channels=256, scale=8, kernel_size=17)]
+        self.model_layers += [TFConvTranspose1d(filters=256, kernel_size=8*2, strides=8, is_weight_norm=True, initializer_seed=42)]
         self.model_layers += [ResidualStack(n_layers=n_layers[0], channels=256)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [Upscale1D(output_channels=128, scale=8, kernel_size=15)]
+        # self.model_layers += [Upscale1D(output_channels=128, scale=8, kernel_size=15)]
+        self.model_layers += [TFConvTranspose1d(filters=128, kernel_size=8*2, strides=8, is_weight_norm=True, initializer_seed=42)]
         self.model_layers += [ResidualStack(n_layers=n_layers[1], channels=128)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [Upscale1D(output_channels=64, scale=2, kernel_size=7)]
+        # self.model_layers += [Upscale1D(output_channels=64, scale=2, kernel_size=7)]
+        self.model_layers += [TFConvTranspose1d(filters=64, kernel_size=2*2, strides=2, is_weight_norm=True, initializer_seed=42)]
         self.model_layers += [ResidualStack(n_layers=n_layers[2], channels=64)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
-        self.model_layers += [Upscale1D(output_channels=32, scale=2, kernel_size=3)]
+        # self.model_layers += [Upscale1D(output_channels=32, scale=2, kernel_size=3)]
+        self.model_layers += [TFConvTranspose1d(filters=32, kernel_size=2*2, strides=2, is_weight_norm=True, initializer_seed=42)]
         self.model_layers += [ResidualStack(n_layers=n_layers[3], channels=32)]
         self.model_layers += [tf.keras.layers.LeakyReLU(alpha=leaky_alpha)]
         self.model_layers += [PaddedWNConv1D(channels=1, kernel_size=7, dilation=1)]

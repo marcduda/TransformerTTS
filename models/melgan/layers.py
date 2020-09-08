@@ -27,7 +27,7 @@ class PaddedWNConv1D(tf.keras.layers.Layer):
         self.layers += [
             tfa.layers.WeightNormalization(
                 tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation,
-                                       groups=groups))]
+                                       groups=groups, kernel_initializer=get_initializer(42)))]
         # if groups ==1: # TF ADDONS not compatible with tf2.3 (groups are only in 2.3)
         #     self.layers += [tfa.layers.WeightNormalization(
         #          tf.keras.layers.Conv1D(channels, padding='valid', kernel_size=kernel_size, dilation_rate=dilation, groups=groups))]
@@ -86,7 +86,9 @@ class Upscale1D(tf.keras.layers.Layer):
     def __init__(self, output_channels: int, scale: int, kernel_size: int, **kwargs):
         super().__init__(**kwargs)
         self.scale = scale
-        self.conv = PaddedWNConv1D(channels=output_channels * scale, kernel_size=kernel_size, dilation=1)
+        # self.conv = PaddedWNConv1D(channels=output_channels * scale, kernel_size=kernel_size, dilation=1)
+        self.conv = tfa.layers.WeightNormalization(
+                tf.keras.layers.Conv1D(output_channels*scale, padding='same', kernel_size=kernel_size, dilation_rate=1, kernel_initializer=get_initializer(42)))
     
     def _pixel_shuffle(self, x):
         x = tf.transpose(a=x, perm=[2, 1, 0])
@@ -97,6 +99,58 @@ class Upscale1D(tf.keras.layers.Layer):
     def __call__(self, x, **kwargs):
         x = self.conv(x)
         return self._pixel_shuffle(x)
+
+def get_initializer(initializer_seed=42):
+    """Creates a `tf.initializers.glorot_normal` with the given seed.
+    Args:
+        initializer_seed: int, initializer seed.
+    Returns:
+        GlorotNormal initializer with seed = `initializer_seed`.
+    """
+    return tf.keras.initializers.GlorotNormal(seed=initializer_seed)
+
+
+class TFConvTranspose1d(tf.keras.layers.Layer):
+    """Tensorflow ConvTranspose1d module."""
+
+    def __init__(
+        self,
+        filters,
+        kernel_size,
+        strides,
+        is_weight_norm,
+        initializer_seed,
+        **kwargs
+    ):
+        """Initialize TFConvTranspose1d( module.
+        Args:
+            filters (int): Number of filters.
+            kernel_size (int): kernel size.
+            strides (int): Stride width.
+            padding (str): Padding type ("same" or "valid").
+        """
+        super().__init__(**kwargs)
+        self.conv1d_transpose = tf.keras.layers.Conv2DTranspose(
+            filters=filters,
+            kernel_size=(kernel_size, 1),
+            strides=(strides, 1),
+            padding="same",
+            kernel_initializer=get_initializer(initializer_seed),
+        )
+        # if is_weight_norm:
+        #     self.conv1d_transpose = tfa.layers.WeightNormalization(self.conv1d_transpose)
+
+    def call(self, x):
+        """Calculate forward propagation.
+        Args:
+            x (Tensor): Input tensor (B, T, C).
+        Returns:
+            Tensor: Output tensor (B, T', C').
+        """
+        x = tf.expand_dims(x, 2)
+        x = self.conv1d_transpose(x)
+        x = tf.squeeze(x, 2)
+        return x
 
 
 class DiscriminatorBlock(tf.keras.layers.Layer):

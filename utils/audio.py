@@ -11,7 +11,7 @@ class Audio():
     def __init__(self, config: dict):
         self.config = config
         self.normalizer = getattr(sys.modules[__name__], config['normalizer'])()
-        self.wav_normalizer = WavNormalizer(mulaw=config['mu_law'])
+        # self.wav_normalizer = WavNormalizer(mulaw=config['mu_law'])
     
     def _normalize(self, S):
         return self.normalizer.normalize(S)
